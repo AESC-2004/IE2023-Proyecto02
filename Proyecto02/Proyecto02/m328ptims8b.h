@@ -97,69 +97,68 @@ typedef enum {
 
 // Initializing TIM_8b
 void	tim_8b_init(tim_8b_num_t TIM_number,
-tim_8b_channel_t TIM_8b_channel,
-tim_8b_prescaler_t TIM_8b_prescaler,
-tim_8b_mode_t TIM_8b_waveform_mode,
-uint8_t TIM_8b_OCRA_value,
-tim_8b_com_t TIM_8b_COM_mode,
-uint8_t TIM_8b_TCNT_inital_value,
-tim_8b_ocnx_t TIM_8b_OCnx_DDRn_ENABLING
+tim_8b_channel_t TIM_channel,
+tim_8b_prescaler_t TIM_prescaler,
+tim_8b_mode_t TIM_waveform_mode,
+uint8_t TIM_OCRA_value,
+tim_8b_com_t TIM_COM_mode,
+uint8_t TIM_TCNT_inital_value,
+tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING
 );
 
 // Initializing TIM0
-void	tim_8b_init(tim_8b_channel_t TIM_8b_channel,
+void	tim0_init(tim_8b_channel_t TIM_channel,
 tim0_prescaler_t TIM0_prescaler,
-tim_8b_mode_t TIM_8b_waveform_mode,
-uint8_t TIM_8b_OCRA_value,
-tim_8b_com_t TIM_8b_COM_mode,
-uint8_t TIM_8b_TCNT_inital_value,
-tim_8b_ocnx_t TIM_8b_OCnx_DDRn_ENABLING
+tim_8b_mode_t TIM_waveform_mode,
+uint8_t TIM_OCRA_value,
+tim_8b_com_t TIM_COM_mode,
+uint8_t TIM_TCNT_inital_value,
+tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING
 );
 
 // Initializing TIM2
-void	tim_8b_init(tim_8b_num_t TIM_number,
-tim_8b_channel_t TIM_8b_channel,
-tim_8b_prescaler_t TIM_8b_prescaler,
-tim_8b_mode_t TIM_8b_waveform_mode,
-uint8_t TIM_8b_OCRA_value,
-tim_8b_com_t TIM_8b_COM_mode,
-uint8_t TIM_8b_TCNT_inital_value,
-tim_8b_ocnx_t TIM_8b_OCnx_DDRn_ENABLING
+void	tim2_init(tim_8b_channel_t TIM_channel,
+tim2_prescaler_t TIM2_prescaler,
+tim_8b_mode_t TIM_waveform_mode,
+uint8_t TIM_OCRA_value,
+tim_8b_com_t TIM_COM_mode,
+uint8_t TIM_TCNT_inital_value,
+tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING
 );
 
 // TCNT Value					(Without changing other settings)
-void	tim_8b_tcnt_value(tim_8b_num_t TIM_number, uint8_t TIM_8b_TCNT_value);
+void	tim_8b_tcnt_value(tim_8b_num_t TIM_number, uint8_t TIM_TCNT_value);
 
 // OCR	Value					(Without changing other settings)
-void	tim_8b_ocr_value(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_8b_channel, uint16_t TIM_8b_OCR_value);
+void	tim_8b_ocr_value(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel, uint8_t TIM_OCR_value);
 
 // Interrupt enabling			(Without changing other settings)
 void	tim_8b_ovf_interrupt_enable(tim_8b_num_t TIM_number);									// Overflow								
-void	tim_8b_oc_interrupt_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_8b_channel);	// Output compare
+void	tim_8b_oc_interrupt_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel);		// Output compare
 
 // Interrupt disabling			(Without changing other settings)
 void	tim_8b_ovf_interrupt_disable(tim_8b_num_t TIM_number);									// Overflow								
-void	tim_8b_oc_interrupt_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_8b_channel);	// Output compare
+void	tim_8b_oc_interrupt_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel);		// Output compare
 
 // Prescaler selection			(Without changing other settings)
-void	tim_8b_prescaler(tim_8b_num_t TIM_number, tim_8b_prescaler_t TIM_8b_prescaler);
+void	tim_8b_prescaler(tim_8b_num_t TIM_number, tim_8b_prescaler_t TIM_prescaler);
 void	tim0_prescaler(tim0_prescaler_t TIM0_prescaler);
 void	tim2_prescaler(tim2_prescaler_t TIM2_prescaler);
 
 // Waveform mode				(Without changing other settings)
-void	tim_8b_waveform_mode(tim_8b_num_t TIM_number, tim_8b_mode_t TIM_8b_waveform_mode);
+void	tim_8b_waveform_mode(tim_8b_num_t TIM_number, tim_8b_mode_t TIM_waveform_mode);
 
 // COM Mode						(Without changing other settings)
-void	tim_8b_compare_output_mode(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_8b_channel, tim_8b_com_t TIM_8b_COM_mode);
+void	tim_8b_compare_output_mode(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel, tim_8b_com_t TIM_COM_mode);
 
 // OCnx enabling				(Without changing other settings)
-void	tim_8b_ocnx_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_8b_channel);
+void	tim_8b_ocnx_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel);
 
 // OCnx disabling				(Without changing other settings)
-void	tim_8b_ocnx_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_8b_channel);
+void	tim_8b_ocnx_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel);
 
 // TIM reseting					(Without changing other settings)
-void tim_8b_reset(tim_8b_num_t TIM_number,);
+void tim_8b_reset(tim_8b_num_t TIM_number);
 
 
 
