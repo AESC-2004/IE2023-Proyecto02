@@ -5,6 +5,9 @@
  *  Author: ang50
  */ 
 
+/*********************************************************************************************************************************************/
+// m328ptims8b.h - 8b Timers library for ATmega328P
+/*********************************************************************************************************************************************/
 
 #ifndef M328PTIMS8B_H_
 #define M328PTIMS8B_H_
@@ -93,35 +96,32 @@ typedef enum {
 // Function prototypes
 
 // Initializing TIM_8b
-void	tim_8b_init(tim_8b_num_t TIM_number,
-tim_8b_channel_t TIM_channel,
-tim_8b_prescaler_t TIM_prescaler,
-tim_8b_mode_t TIM_waveform_mode,
-uint8_t TIM_OCRA_value,
-tim_8b_com_t TIM_COM_mode,
-uint8_t TIM_TCNT_inital_value,
-tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING
-);
+void	tim_8b_init(tim_8b_num_t		TIM_number,
+					tim_8b_channel_t	TIM_channel,
+					tim_8b_prescaler_t	TIM_prescaler,
+					tim_8b_mode_t		TIM_waveform_mode,
+					uint8_t				TIM_OCRA_value,
+					tim_8b_com_t		TIM_COM_mode,
+					uint8_t				TIM_TCNT_inital_value,
+					tim_8b_ocnx_t		TIM_OCnx_DDRn_ENABLING);
 
 // Initializing TIM0
-void	tim0_init(tim_8b_channel_t TIM_channel,
-tim0_prescaler_t TIM0_prescaler,
-tim_8b_mode_t TIM_waveform_mode,
-uint8_t TIM_OCRA_value,
-tim_8b_com_t TIM_COM_mode,
-uint8_t TIM_TCNT_inital_value,
-tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING
-);
+void	tim0_init(tim_8b_channel_t		TIM_channel,
+				  tim0_prescaler_t		TIM0_prescaler,
+				  tim_8b_mode_t			TIM_waveform_mode,
+				  uint8_t				TIM_OCRA_value,
+				  tim_8b_com_t			TIM_COM_mode,
+				  uint8_t				TIM_TCNT_inital_value,
+				  tim_8b_ocnx_t			TIM_OCnx_DDRn_ENABLING);
 
 // Initializing TIM2
-void	tim2_init(tim_8b_channel_t TIM_channel,
-tim2_prescaler_t TIM2_prescaler,
-tim_8b_mode_t TIM_waveform_mode,
-uint8_t TIM_OCRA_value,
-tim_8b_com_t TIM_COM_mode,
-uint8_t TIM_TCNT_inital_value,
-tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING
-);
+void	tim2_init(tim_8b_channel_t		TIM_channel,
+				  tim2_prescaler_t		TIM2_prescaler,
+				  tim_8b_mode_t			TIM_waveform_mode,
+				  uint8_t				TIM_OCRA_value,
+				  tim_8b_com_t			TIM_COM_mode,
+				  uint8_t				TIM_TCNT_inital_value,
+				  tim_8b_ocnx_t			TIM_OCnx_DDRn_ENABLING);
 
 // TCNT Value					(Without changing other settings)
 void	tim_8b_tcnt_value(tim_8b_num_t TIM_number, uint8_t TIM_TCNT_value);
@@ -157,6 +157,6 @@ void	tim_8b_ocnx_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel);
 // TIM reseting					(Without changing other settings)
 void tim_8b_reset(tim_8b_num_t TIM_number);
 
-
+/*********************************************************************************************************************************************/
 
 #endif /* M328PTIMS8B_H_ */

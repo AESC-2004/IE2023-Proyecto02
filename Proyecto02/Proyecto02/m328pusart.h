@@ -5,6 +5,9 @@
  *  Author: ang50
  */ 
 
+/*********************************************************************************************************************************************/
+// m32u4usart.h - USART library for ATmega328P
+/*********************************************************************************************************************************************/
 
 #ifndef M328PUSART_H_
 #define M328PUSART_H_
@@ -146,11 +149,16 @@ void	usart_character_size(usart_character_size_t USART_character_size);
 void	usart_parity_mode(usart_parity_mode_t USART_parity_mode);
 void	usart_stop_bit(usart_stop_bit_t USART_stop_bit);
 
+// Sub-protocoled communications	(Without changing other settings)
+// When both sub-protocoled communications are intended to be set, only the first shall be established
+void	usart_multiprocessor_enable();
+void	usart_multiprocessor_disable();
+void	usart_flow_control_enable();
+void	usart_flow_control_disable();
+
 // Pins enabling				(Without changing other settings)
 void	usart_rx_enable();
 void	usart_tx_enable();
-
-// Pins disabling				(Without changing other settings)
 void	usart_rx_disable();
 void	usart_tx_disable();
 

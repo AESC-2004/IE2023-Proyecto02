@@ -6,24 +6,27 @@
  */ 
 
 /*********************************************************************************************************************************************/
-// Libraries
+// m328ptims8b.c - 8b Timers library for ATmega328P
+/*********************************************************************************************************************************************/
 
+/*********************************************************************************************************************************************/
+// Libraries
 #include <avr/io.h>
 #include <stdint.h>
 #include "m328ptims8b.h"
 /*********************************************************************************************************************************************/
 
 /*********************************************************************************************************************************************/
-//Functions
+// Timers initiation functions
 
-void tim_8b_init(tim_8b_num_t TIM_number,
-tim_8b_channel_t TIM_channel,
-tim_8b_prescaler_t TIM_prescaler,
-tim_8b_mode_t TIM_waveform_mode,
-uint8_t TIM_OCRA_value,
-tim_8b_com_t TIM_COM_mode,
-uint8_t TIM_TCNT_inital_value,
-tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING)
+void	tim_8b_init(tim_8b_num_t		TIM_number,
+					tim_8b_channel_t	TIM_channel,
+					tim_8b_prescaler_t	TIM_prescaler,
+					tim_8b_mode_t		TIM_waveform_mode,
+					uint8_t				TIM_OCRA_value,
+					tim_8b_com_t		TIM_COM_mode,
+					uint8_t				TIM_TCNT_inital_value,
+					tim_8b_ocnx_t		TIM_OCnx_DDRn_ENABLING)
 {
 	tim_8b_reset(TIM_number);
 	tim_8b_prescaler(TIM_number, TIM_prescaler);
@@ -41,13 +44,13 @@ tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING)
 	tim_8b_tcnt_value(TIM_number, TIM_TCNT_inital_value);
 }
 
-void tim0_init(tim_8b_channel_t TIM_channel,
-tim0_prescaler_t TIM0_prescaler,
-tim_8b_mode_t TIM_waveform_mode,
-uint8_t TIM_OCRA_value,
-tim_8b_com_t TIM_COM_mode,
-uint8_t TIM_TCNT_inital_value,
-tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING)
+void	tim0_init(tim_8b_channel_t		TIM_channel,
+				  tim0_prescaler_t		TIM0_prescaler,
+				  tim_8b_mode_t			TIM_waveform_mode,
+				  uint8_t				TIM_OCRA_value,
+				  tim_8b_com_t			TIM_COM_mode,
+				  uint8_t				TIM_TCNT_inital_value,
+				  tim_8b_ocnx_t			TIM_OCnx_DDRn_ENABLING)
 {
 	tim_8b_reset(TIM_8b_NUM_0);
 	tim0_prescaler(TIM0_prescaler);
@@ -65,13 +68,13 @@ tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING)
 	tim_8b_tcnt_value(TIM_8b_NUM_0, TIM_TCNT_inital_value);
 }
 
-void tim2_init(tim_8b_channel_t TIM_channel,
-tim2_prescaler_t TIM2_prescaler,
-tim_8b_mode_t TIM_waveform_mode,
-uint8_t TIM_OCRA_value,
-tim_8b_com_t TIM_COM_mode,
-uint8_t TIM_TCNT_inital_value,
-tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING)
+void	tim2_init(tim_8b_channel_t		TIM_channel,
+				  tim2_prescaler_t		TIM2_prescaler,
+				  tim_8b_mode_t			TIM_waveform_mode,
+				  uint8_t				TIM_OCRA_value,
+				  tim_8b_com_t			TIM_COM_mode,
+				  uint8_t				TIM_TCNT_inital_value,
+				  tim_8b_ocnx_t			TIM_OCnx_DDRn_ENABLING)
 {
 	tim_8b_reset(TIM_8b_NUM_2);
 	tim2_prescaler(TIM2_prescaler);
@@ -89,7 +92,12 @@ tim_8b_ocnx_t TIM_OCnx_DDRn_ENABLING)
 	tim_8b_tcnt_value(TIM_8b_NUM_2, TIM_TCNT_inital_value);
 }
 
-void tim_8b_tcnt_value(tim_8b_num_t TIM_number, uint8_t TIM_TCNT_value)
+/*********************************************************************************************************************************************/
+
+/*********************************************************************************************************************************************/
+// Timers-Counter values functions
+
+void	tim_8b_tcnt_value(tim_8b_num_t TIM_number, uint8_t TIM_TCNT_value)
 {
 	switch (TIM_number)
 	{
@@ -99,7 +107,7 @@ void tim_8b_tcnt_value(tim_8b_num_t TIM_number, uint8_t TIM_TCNT_value)
 	}
 }
 
-void tim_8b_ocr_value(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel, uint8_t TIM_OCR_value)
+void	tim_8b_ocr_value(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel, uint8_t TIM_OCR_value)
 {
 	switch (TIM_number)
 	{
@@ -122,7 +130,12 @@ void tim_8b_ocr_value(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel, uin
 	}
 }
 
-void tim_8b_ovf_interrupt_enable(tim_8b_num_t TIM_number) {
+/*********************************************************************************************************************************************/
+
+/*********************************************************************************************************************************************/
+// Timers interrupt enabling functions
+
+void	tim_8b_ovf_interrupt_enable(tim_8b_num_t TIM_number) {
 	switch (TIM_number) {
 		case TIM_8b_NUM_0: TIMSK0 |= (1 << TOIE0); break;
 		case TIM_8b_NUM_2: TIMSK2 |= (1 << TOIE2); break;
@@ -130,7 +143,7 @@ void tim_8b_ovf_interrupt_enable(tim_8b_num_t TIM_number) {
 	}
 }
 
-void tim_8b_oc_interrupt_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel) {
+void	tim_8b_oc_interrupt_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel) {
 	switch (TIM_number) {
 		case TIM_8b_NUM_0:
 		switch (TIM_channel)
@@ -152,7 +165,7 @@ void tim_8b_oc_interrupt_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_ch
 	}
 }
 
-void tim_8b_ovf_interrupt_disable(tim_8b_num_t TIM_number) {
+void	tim_8b_ovf_interrupt_disable(tim_8b_num_t TIM_number) {
 	switch (TIM_number) {
 		case TIM_8b_NUM_0: TIMSK0 &= ~(1 << TOIE0); break;
 		case TIM_8b_NUM_2: TIMSK2 &= ~(1 << TOIE2); break;
@@ -160,7 +173,7 @@ void tim_8b_ovf_interrupt_disable(tim_8b_num_t TIM_number) {
 	}
 }
 
-void tim_8b_oc_interrupt_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel) {
+void	tim_8b_oc_interrupt_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel) {
 	switch (TIM_number) {
 		case TIM_8b_NUM_0:
 		switch (TIM_channel)
@@ -182,7 +195,12 @@ void tim_8b_oc_interrupt_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_c
 	}
 }
 
-void tim_8b_prescaler(tim_8b_num_t TIM_number, tim_8b_prescaler_t TIM_prescaler)
+/*********************************************************************************************************************************************/
+
+/*********************************************************************************************************************************************/
+// Timers prescalers functions
+
+void	tim_8b_prescaler(tim_8b_num_t TIM_number, tim_8b_prescaler_t TIM_prescaler)
 {
 	switch (TIM_number)
 	{
@@ -215,17 +233,22 @@ void tim_8b_prescaler(tim_8b_num_t TIM_number, tim_8b_prescaler_t TIM_prescaler)
 	
 }
 
-void tim0_prescaler(tim0_prescaler_t TIM0_prescaler)
+void	tim0_prescaler(tim0_prescaler_t TIM0_prescaler)
 {
 	TCCR0B = (TCCR0B & 0xF8) | (TIM0_prescaler);
 }
 
-void tim2_prescaler(tim2_prescaler_t TIM2_prescaler)
+void	tim2_prescaler(tim2_prescaler_t TIM2_prescaler)
 {
 	TCCR2B = (TCCR2B & 0xF8) | (TIM2_prescaler);
 }
 
-void tim_8b_waveform_mode(tim_8b_num_t TIM_number, tim_8b_mode_t TIM_waveform_mode)
+/*********************************************************************************************************************************************/
+
+/*********************************************************************************************************************************************/
+// Timers waveform and compare output mode functions
+
+void	tim_8b_waveform_mode(tim_8b_num_t TIM_number, tim_8b_mode_t TIM_waveform_mode)
 {
 	uint8_t WGM10_bits	 = 0;
 	uint8_t WGM2_bit	 = 0;
@@ -258,7 +281,7 @@ void tim_8b_waveform_mode(tim_8b_num_t TIM_number, tim_8b_mode_t TIM_waveform_mo
 	}
 }
 
-void tim_8b_compare_output_mode(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel, tim_8b_com_t TIM_COM_mode)
+void	tim_8b_compare_output_mode(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel, tim_8b_com_t TIM_COM_mode)
 {
 	uint8_t COM_bits = 0;
 	switch (TIM_channel)
@@ -299,7 +322,12 @@ void tim_8b_compare_output_mode(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_ch
 	}
 }
 
-void tim_8b_ocnx_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel)
+/*********************************************************************************************************************************************/
+
+/*********************************************************************************************************************************************/
+// Timers pin enabling functions
+
+void	tim_8b_ocnx_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel)
 {
 	switch (TIM_number)
 	{
@@ -323,7 +351,7 @@ void tim_8b_ocnx_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel)
 	}
 }
 
-void tim_16b_ocnx_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel)
+void	tim_16b_ocnx_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel)
 {
 	switch (TIM_number)
 	{
@@ -347,7 +375,12 @@ void tim_16b_ocnx_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel)
 	}
 }
 
-void tim_8b_reset(tim_8b_num_t TIM_number)
+/*********************************************************************************************************************************************/
+
+/*********************************************************************************************************************************************/
+// Timers resetting function
+
+void	tim_8b_reset(tim_8b_num_t TIM_number)
 {
 	switch (TIM_number)
 	{
@@ -370,3 +403,5 @@ void tim_8b_reset(tim_8b_num_t TIM_number)
 		default: break;
 	}
 }
+
+/*********************************************************************************************************************************************/
