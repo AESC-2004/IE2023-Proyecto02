@@ -80,33 +80,30 @@ typedef enum {
 // Function prototypes
 
 // Initializing a USART communication type
-void	usart_init(usart_mode_t USART_mode,
-usart_clock_polarity_t USART_clock_polarity,
-usart_speed_t USART_speed,
-usart_character_size_t USART_character_size,
-usart_parity_mode_t USART_parity_mode,
-usart_stop_bit_t USART_stop_bit,
-usart_mpcm_t USART_multiprocessor_mode,
-uint16_t USART_baud_value
-);
+void	usart_init(usart_mode_t				USART_mode,
+				   usart_clock_polarity_t	USART_clock_polarity,
+				   usart_speed_t			USART_speed,
+				   usart_character_size_t	USART_character_size,
+				   usart_parity_mode_t		USART_parity_mode,
+				   usart_stop_bit_t			USART_stop_bit,
+				   usart_mpcm_t				USART_multiprocessor_mode,
+				   uint16_t					USART_baud_value);
 
 // Initializing a UART communication type
-void	uart_init(usart_speed_t USART_speed,
-usart_character_size_t USART_character_size,
-usart_parity_mode_t USART_parity_mode,
-usart_stop_bit_t USART_stop_bit,
-usart_mpcm_t USART_multiprocessor_mode,
-uint16_t USART_baud_value
-);
+void	uart_init(usart_speed_t				USART_speed,
+				  usart_character_size_t	USART_character_size,
+				  usart_parity_mode_t		USART_parity_mode,
+				  usart_stop_bit_t			USART_stop_bit,
+				  usart_mpcm_t				USART_multiprocessor_mode,
+				  uint16_t					USART_baud_value);
 
 // Initializing a USRT communication type
-void	usrt_init(usart_clock_polarity_t USART_clock_polarity,
-usart_character_size_t USART_character_size,
-usart_parity_mode_t USART_parity_mode,
-usart_stop_bit_t USART_stop_bit,
-usart_mpcm_t USART_multiprocessor_mode,
-uint16_t USART_baud_value
-);
+void	usrt_init(usart_clock_polarity_t	USART_clock_polarity,
+				  usart_character_size_t	USART_character_size,
+				  usart_parity_mode_t		USART_parity_mode,
+				  usart_stop_bit_t			USART_stop_bit,
+				  usart_mpcm_t				USART_multiprocessor_mode,
+				  uint16_t					USART_baud_value);
 
 // Polling Transmit				(Without changing other settings)
 // The function shall look for the number of bits being transmitted and work as needed.
