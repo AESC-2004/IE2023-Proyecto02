@@ -23,6 +23,8 @@
 uint8_t Motors_MUX	= 0;
 uint8_t TIM0_Millis	= 0;
 
+uint8_t ADC_Lec		= 0;
+
 /*********************************************************************************************************************************************/
 // Function prototypes
 void SETUP();
@@ -53,7 +55,7 @@ void SETUP()
 	DDRB	|= (1 << DDB0);
 	
 	// Enabling PC0,1 as outputs for the motors MUX
-	DDRC	|= (1 << DDC0) | (1 << DDC1);
+	DDRC	|= (1 << DDC0) | (1 << DDC3);
 	
 	// Establishing a PWM with TIM1 
 	tim1_init(TIM1_CHANNEL_A, TIM1_PRESCALE_8, TIM1_MODE_CTC_OCR1A, 0, TIM1_COM_OC1x_DISCONNECTED, 0, TIM1_OC1x_DISABLE);
@@ -63,8 +65,14 @@ void SETUP()
 	tim0_init(TIM_8b_CHANNEL_A, TIM0_PRESCALE_8, TIM_8b_MODE_CTC_OCRA, 250, TIM_8b_COM_OCnx_DISCONNECTED, 0, TIM_8b_OCnx_DISABLE);
 	tim_8b_oc_interrupt_enable(TIM_8b_NUM_0, TIM_8b_CHANNEL_A);
 	
+	// Settin an ADC lecture
+	adc_init(ADC_REF_AVCC, ADC_PRESCALE_8, ADC_LEFT_ADJUST, ADC_CHANNEL_ADC1, ADC_INTERRUPT_ENABLE, ADC_AUTO_TRIGGER_ENABLE, ADC_TRIGGER_FREE_RUNNING); 
+	
 	// Activating interrupts
 	sei();
+	
+	// Starting the ADC
+	adc_start_conversion();
 }
 
 /*********************************************************************************************************************************************/
@@ -77,16 +85,16 @@ ISR(TIMER0_COMPA_vect)
 	if (Motors_MUX == 0 && TIM0_Millis == 0)
 	{
 		PORTC	&= ~(1 << PORTC0);
-		tim1_ocr_value(TIM1_CHANNEL_A, 225);
+		tim1_ocr_value(TIM1_CHANNEL_A, ADC_Lec);
 		tim1_tcnt_value(0);
 		tim1_oc_interrupt_enable(TIM1_CHANNEL_A);
-		PORTC	|= (1 << PORTC1);
+		PORTC	|= (1 << PORTC3);
 		PORTB	|= (1 << PORTB0);
 		Motors_MUX	= 1;
 		
 	} else if (Motors_MUX == 1 && TIM0_Millis == 1)
 	{
-		PORTC	&= ~(1 << PORTC1);
+		PORTC	&= ~(1 << PORTC3);
 		tim1_ocr_value(TIM1_CHANNEL_A, 50);
 		tim1_tcnt_value(0);
 		tim1_oc_interrupt_enable(TIM1_CHANNEL_A);
@@ -101,5 +109,13 @@ ISR(TIMER1_COMPA_vect)
 	
 	PORTB	&= ~(1 << PORTB0);
 	//tim1_oc_interrupt_disable(TIM1_CHANNEL_A);
+	
+}
+
+ISR(ADC_vect)
+{
+	
+	ADC_Lec	= ADCH;
+	ADC_Lec	= (ADC_Lec * 250)/255;
 	
 }

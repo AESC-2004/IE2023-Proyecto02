@@ -102,6 +102,9 @@ void	adc_init(adc_ref_t					ADC_reference,
 void	adc_enable();
 void	adc_disable();
 
+// ADC start conversion		(Without changing other settings)
+void	adc_start_conversion();
+
 // Channel selection		(Without changing other settings)
 void	adc_channel(adc_channel_t ADC_channel);
 
