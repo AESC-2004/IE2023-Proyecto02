@@ -107,7 +107,7 @@ void	usart_multiprocessor_enable()
 {
 	UCSR0A	|= (1 << MPCM0);
 }
-}
+
 
 void	usart_multiprocessor_disable()
 {

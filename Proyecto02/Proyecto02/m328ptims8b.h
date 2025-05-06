@@ -132,8 +132,6 @@ void	tim_8b_ocr_value(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel, uin
 // Interrupt enabling			(Without changing other settings)
 void	tim_8b_ovf_interrupt_enable(tim_8b_num_t TIM_number);									// Overflow								
 void	tim_8b_oc_interrupt_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel);		// Output compare
-
-// Interrupt disabling			(Without changing other settings)
 void	tim_8b_ovf_interrupt_disable(tim_8b_num_t TIM_number);									// Overflow								
 void	tim_8b_oc_interrupt_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel);		// Output compare
 
@@ -150,8 +148,6 @@ void	tim_8b_compare_output_mode(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_ch
 
 // OCnx enabling				(Without changing other settings)
 void	tim_8b_ocnx_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel);
-
-// OCnx disabling				(Without changing other settings)
 void	tim_8b_ocnx_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel);
 
 // TIM reseting					(Without changing other settings)

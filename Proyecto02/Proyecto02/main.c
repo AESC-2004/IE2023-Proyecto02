@@ -6,7 +6,7 @@
  */ 
 
 /*********************************************************************************************************************************************/
-// Encabezado (Libraries)
+// Libraries
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdint.h>
@@ -18,8 +18,10 @@
 /*********************************************************************************************************************************************/
 
 /*********************************************************************************************************************************************/
-// Variables y constantes
+// Variables and constants
 
+uint8_t Motors_MUX	= 0;
+uint8_t TIM0_Millis	= 0;
 
 /*********************************************************************************************************************************************/
 // Function prototypes
@@ -33,9 +35,6 @@ int main(void)
 	
 	while (1)
 	{
-		OCR1A = 250 + ((uint32_t)SERVO1_READ * 1000) / 1023;
-		OCR3A = 250 + ((uint32_t)SERVO2_READ * 1000) / 1023;
-		OCR0A = LED_READ;
 	}
 }
 
@@ -43,57 +42,64 @@ int main(void)
 // NON-Interrupt subroutines
 void SETUP()
 {
-	// Desactivamos interrupciones
+	// Deactivating interrupts
 	cli();
-	// Desactivamos UART1
-	UCSR1B			= 0x00;
-	// Ajustamos el Prescaler global para F_CPU = 1MHz
-	CLKPR			= (1 << CLKPCE);
-	CLKPR			= (0 << CLKPCE) | (0 << CLKPS3) | (1 << CLKPS2) | (0 << CLKPS1) | (0 << CLKPS0);
-	// Algunas funciones de inicio
-	tim_16b_init(TIM_16b_NUM_1, TIM_16b_CHANNEL_A, TIM_16b_PRESCALE_1, TIM_16b_MODE_PHASE_CORRECT_PWM_ICRn, 10000, TIM_16b_COM_NON_INVERT_OCnx, 0, TIM_16b_OCnx_ENABLE);
-	tim_16b_init(TIM_16b_NUM_3, TIM_16b_CHANNEL_A, TIM_16b_PRESCALE_1, TIM_16b_MODE_PHASE_CORRECT_PWM_ICRn, 10000, TIM_16b_COM_NON_INVERT_OCnx, 0, TIM_16b_OCnx_ENABLE);
-	tim0_init(TIM0_CHANNEL_A, TIM0_PRESCALE_1, TIM0_MODE_FAST_PWM_0xFF, 0, TIM0_COM_NON_INVERT_OC0x, 0, TIM0_OC0x_ENABLE);
-	ADCinit();
-	ADCSRA |= (1 << ADSC);
+	
+	// Reducing global CLK to 1MHZ
+	CLKPR	|= (1 << CLKPCE);
+	CLKPR	= (0 << CLKPCE) | (0 << CLKPS3) | (1 << CLKPS2) | (0 << CLKPS1) | (0 << CLKPS0);
+	
+	// Enabling PB0 as output for them motors
+	DDRB	|= (1 << DDB0);
+	
+	// Enabling PC0,1 as outputs for the motors MUX
+	DDRC	|= (1 << DDC0) | (1 << DDC1);
+	
+	// Establishing a PWM with TIM1 
+	tim1_init(TIM1_CHANNEL_A, TIM1_PRESCALE_8, TIM1_MODE_CTC_OCR1A, 0, TIM1_COM_OC1x_DISCONNECTED, 0, TIM1_OC1x_DISABLE);
+	//tim1_oc_interrupt_enable(TIM1_CHANNEL_A);
+	
+	// Initiating TIM0 for MUX standards
+	tim0_init(TIM_8b_CHANNEL_A, TIM0_PRESCALE_8, TIM_8b_MODE_CTC_OCRA, 250, TIM_8b_COM_OCnx_DISCONNECTED, 0, TIM_8b_OCnx_DISABLE);
+	tim_8b_oc_interrupt_enable(TIM_8b_NUM_0, TIM_8b_CHANNEL_A);
+	
+	// Activating interrupts
 	sei();
 }
 
-void ADCinit()
-{
-	// NO_Auto_Trigger, PS_8, ADC6 (Initial), AVCC_REF, ADC_INT_EN
-	ADMUX		= (0 << REFS1) | (1 << REFS0)| (0 << ADLAR) | (0 << MUX4) | (0 << MUX3) | (1 << MUX2) | (1 << MUX1) | (0 << MUX0);
-	ADCSRB		= (0 << MUX5) | (0 << ADTS3) | (0 << ADTS2) | (0 << ADTS1) | (0 << ADTS0);
-	ADCSRA		= (1 << ADEN) | (0 << ADSC)| (0 << ADATE) | (0 << ADIF) | (1 << ADIE) | (0 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
-}
 /*********************************************************************************************************************************************/
 // Interrupt routines
 
-ISR(ADC_vect)
+ISR(TIMER0_COMPA_vect)
 {
-	// MUX needed
-	if (ADC_MUX == 1)		// SERVO1 &	ADC6	------>		SERVO2 & ADC4
+	TIM0_Millis++;
+	if (TIM0_Millis == 10) TIM0_Millis = 0;
+	if (Motors_MUX == 0 && TIM0_Millis == 0)
 	{
-		SERVO1_READ		= ADC;
-		ADC_MUX			= 2;
-		// ADC update to ADC4:
-		ADMUX		=  (0 << REFS1) | (1 << REFS0)| (0 << ADLAR) | (0 << MUX4) | (0 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0);
-		ADCSRA |= (1 << ADSC);
-	}
-	else if (ADC_MUX == 2)	// SERVO2 &	ADC4	------>		LED & ADC5
+		PORTC	&= ~(1 << PORTC0);
+		tim1_ocr_value(TIM1_CHANNEL_A, 225);
+		tim1_tcnt_value(0);
+		tim1_oc_interrupt_enable(TIM1_CHANNEL_A);
+		PORTC	|= (1 << PORTC1);
+		PORTB	|= (1 << PORTB0);
+		Motors_MUX	= 1;
+		
+	} else if (Motors_MUX == 1 && TIM0_Millis == 1)
 	{
-		SERVO2_READ		= ADC;
-		ADC_MUX			= 3;
-		// ADC update to ADC5 & ***LEFT ADJUST!!!***:
-		ADMUX		=  (0 << REFS1) | (1 << REFS0)| (1 << ADLAR) | (0 << MUX4) | (0 << MUX3) | (1 << MUX2) | (0 << MUX1) | (1 << MUX0);
-		ADCSRA |= (1 << ADSC);
+		PORTC	&= ~(1 << PORTC1);
+		tim1_ocr_value(TIM1_CHANNEL_A, 50);
+		tim1_tcnt_value(0);
+		tim1_oc_interrupt_enable(TIM1_CHANNEL_A);
+		PORTC	|= (1 << PORTC0);
+		PORTB	|= (1 << PORTB0);
+		Motors_MUX	= 0;
 	}
-	else if (ADC_MUX == 3)	// LED & ADC5		------>		SERVO1 & ADC6
-	{
-		LED_READ		= ADCH;
-		ADC_MUX			= 1;
-		// ADC update to ADC6 & ***RETURN TO RIGHT ADJUST!!!***:
-		ADMUX		=  (0 << REFS1) | (1 << REFS0)| (0 << ADLAR) | (0 << MUX4) | (0 << MUX3) | (1 << MUX2) | (1 << MUX1) | (0 << MUX0);
-		ADCSRA |= (1 << ADSC);
-	}
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+	
+	PORTB	&= ~(1 << PORTB0);
+	//tim1_oc_interrupt_disable(TIM1_CHANNEL_A);
+	
 }

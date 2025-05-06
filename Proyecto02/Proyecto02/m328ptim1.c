@@ -57,7 +57,7 @@ void	tim1_tcnt_value(uint16_t TIM1_TCNT_value)
 
 void	tim1_ocr_value(tim1_channel_t TIM1_channel, uint16_t TIM1_OCR_value)
 {
-	switch (TIM_channel)
+	switch (TIM1_channel)
 	{
 		case TIM1_CHANNEL_A: OCR1A = TIM1_OCR_value; break;
 		case TIM1_CHANNEL_B: OCR1B = TIM1_OCR_value; break;
@@ -89,14 +89,14 @@ void	tim1_top_value(uint16_t TIM1_TOP_value)
 
 void	tim1_ovf_interrupt_enable()
 {
-	TIMSK1 |= (1 << TOIE1); break;
+	TIMSK1 |= (1 << TOIE1);
 
 }
 
-void	tim1_oc_interrupt_enable(tim1_channel_t TIM_channel)
+void	tim1_oc_interrupt_enable(tim1_channel_t TIM1_channel)
 {
 
-	switch (TIM_channel)
+	switch (TIM1_channel)
 	{
 		case TIM1_CHANNEL_A: TIMSK1 |= (1 << OCIE1A); break;
 		case TIM1_CHANNEL_B: TIMSK1 |= (1 << OCIE1B); break;
@@ -112,10 +112,10 @@ void	tim1_ovf_interrupt_disable()
 
 }
 
-void	tim1_oc_interrupt_disable(tim1_channel_t TIM_channel)
+void	tim1_oc_interrupt_disable(tim1_channel_t TIM1_channel)
 {
 
-	switch (TIM_channel)
+	switch (TIM1_channel)
 	{
 		case TIM1_CHANNEL_A: TIMSK1 &= ~(1 << OCIE1A); break;
 		case TIM1_CHANNEL_B: TIMSK1 &= ~(1 << OCIE1B); break;
@@ -129,10 +129,10 @@ void	tim1_oc_interrupt_disable(tim1_channel_t TIM_channel)
 /*********************************************************************************************************************************************/
 // Timers prescaler function
 
-void	tim1_prescaler(tim1_prescaler_t TIM_prescaler)
+void	tim1_prescaler(tim1_prescaler_t TIM1_prescaler)
 {
 
-	TCCR1B = (TCCR1B & 0xF8) | (TIM_prescaler); break;
+	TCCR1B = (TCCR1B & 0xF8) | (TIM1_prescaler);
 	
 }
 
@@ -202,6 +202,7 @@ void	tim1_compare_output_mode(tim1_channel_t TIM1_channel, tim1_com_t TIM1_COM_m
 			TCCR1A	&= ~((1 << COM1B1) | (1 << COM1B0)); TCCR1A |= COM_bits;
 			break;
 		default: break;
+	}
 }
 
 /*********************************************************************************************************************************************/

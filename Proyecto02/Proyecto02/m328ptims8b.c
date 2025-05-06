@@ -351,7 +351,7 @@ void	tim_8b_ocnx_enable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel)
 	}
 }
 
-void	tim_16b_ocnx_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel)
+void	tim_8b_ocnx_disable(tim_8b_num_t TIM_number, tim_8b_channel_t TIM_channel)
 {
 	switch (TIM_number)
 	{
