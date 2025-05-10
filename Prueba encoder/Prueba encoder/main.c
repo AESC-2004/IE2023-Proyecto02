@@ -18,8 +18,9 @@ uint8_t DISP7SEG_PB[10] = {0, 0, 1, 1, 1, 1, 1, 0, 1, 1};
 uint8_t Count = 1;
 uint8_t Count_Mode = 0;
 
-volatile uint8_t	ENCODER_SW_Last = 1;			// SW starts as 1 (Pull-up)
+volatile uint8_t	ENCODER_SW_Last			= 1;			// SW starts as 1 (Pull-up)
 uint8_t				ENCODER_SW_Push_Time	= 0;
+volatile uint8_t	ENCODER_DATA_Last		= 1;
 
 
 int main(void)
@@ -30,10 +31,11 @@ int main(void)
 	PORTB	|= (1 << DDB1);
 	
 	// Encoder
-	DDRC	|= (0 << DDC3) | (0 << DDC2) | (0 << DDC1);
-	PORTC	|= (1 << DDC3) | (1 << DDC2) | (1 << DDC1);
+	DDRC	&= ~((1 << DDC3) | (1 << DDC2) | (1 << DDC1));
+	PORTC	|= (1 << DDC3);							// Pull-up enabled for SW
+	PORTC	&= ~((1 << DDC2) | (1 << DDC1));		// Pull-up disabled for DATA and CLK
 	PCICR	|= (1 << PCIE1);
-	PCMSK1	|= (1 << PCINT11) | (1 << PCINT10) | (1 << PCINT9);
+	PCMSK1	|= (1 << PCINT11) | (1 << PCINT9);		// Masked SW and DATA only
 	
 	// TIM1 for counting 1 sec.
 	tim1_init(TIM1_CHANNEL_A, TIM1_PRESCALE_256, TIM1_MODE_NORMAL, 0xFFFF, TIM1_COM_OC1x_DISCONNECTED, 3036, TIM1_OC1x_DISABLE);
@@ -57,31 +59,52 @@ ISR(PCINT1_vect)
 {
 	cli();
 	
+	// SW logic
 	// PINC3 value is saved
-	uint8_t SW_State = (PINC & (1 << PC3)) ? 1 : 0;
+	uint8_t SW_State = (PINC & (1 << PINC3)) ? 1 : 0;
 	// If SW is being pushed, and if it was not being pressed before, TIM2 starts
-	if ((SW_State == 0) && ENCODER_SW_Last == 1)		// Falling edge detected: SW pushed
+	if ((SW_State == 0) && ENCODER_SW_Last == 1)			// Falling edge detected: SW pushed
 	{
 		tim_8b_tcnt_value(TIM_8b_NUM_2, 0);
 		tim_8b_ovf_interrupt_enable(TIM_8b_NUM_2);
 	}
 	// If SW is not pushed anymore (If being pressed before), and if the total pushed time
 	// is less than 2secs, AND if the count mode is manual (Count_Mode = 0), Count is updated
-	else if (SW_State == 1 && ENCODER_SW_Last == 0)		// Rising edge detected: SW liberated
+	else if (SW_State == 1 && ENCODER_SW_Last == 0)			// Rising edge detected: SW liberated
 	{
 		tim_8b_ovf_interrupt_disable(TIM_8b_NUM_2);
 		if (ENCODER_SW_Push_Time < 122)
 		{
 			ENCODER_SW_Push_Time = 0;
-			if (Count_Mode == 0)
+			/*if (Count_Mode == 0)
 			{
 				Count++;
 				if (Count == 10) Count = 0;
 			}
+			*/
 		}
 	}
+	ENCODER_SW_Last = SW_State;								// ENCODER_SW_Last updated
 	
-	ENCODER_SW_Last = SW_State;							// ENCODER_SW_Last updated
+	// DATA and CLK logic
+	// PINC2,1 values are saved
+	uint8_t DATA_State = (PINC & (1 << PINC2));
+	uint8_t CLK_State = (PINC & (1 << PINC1));
+	if (!CLK_State)		// Falling edge detected: Encoder spin
+	{
+		if (Count_Mode == 0)
+		{
+			if (DATA_State)
+			{
+				Count++;
+				if (Count == 10) Count = 0;
+				
+			} else if (!DATA_State){
+				Count--;
+				if (Count == 255) Count = 9;
+			}
+		}
+	}
 	
 	sei();
 }
