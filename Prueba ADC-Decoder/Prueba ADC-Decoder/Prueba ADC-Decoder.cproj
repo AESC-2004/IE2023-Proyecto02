@@ -120,6 +120,30 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="m328padc.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="m328padc.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="m328ptim1.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="m328ptim1.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="m328ptims8b.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="m328ptims8b.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="m328pusart.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="m328pusart.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="main.c">
       <SubType>compile</SubType>
     </Compile>
