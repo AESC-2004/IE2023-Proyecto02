@@ -263,7 +263,7 @@ void	usart_receive_string(char* USART_destination_buffer)
 	{
 		
 		// If either "\r" or "\n" are found, then we break the loop.
-		if ((usart_get_received_byte(i) == '\r') || (usart_get_received_byte(i) == '\r'))
+		if ((usart_get_received_byte(i) == '\r') || (usart_get_received_byte(i) == '\n'))
 		{
 			USART_destination_buffer[i] = '\0';
 			return;

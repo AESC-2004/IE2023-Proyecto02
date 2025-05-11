@@ -9,6 +9,8 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "m328padc.h"
 #include "m328pusart.h"
 #include "m328ptims8b.h"
@@ -18,9 +20,14 @@
 
 uint8_t ADC_Count		= 0;
 uint8_t ADC_Lec			= 0;
-uint8_t PWM_Values[4]	= {0, 0, 0, 0};
+uint8_t PWM_Values[5]	= {0, 0, 0, 0, 255};
 
 uint8_t TIM0_Count	= 0;
+
+void	UART_ParseAdafruitFeedData();
+#define EncodedDataBufferSize 16
+char	EncodedData[EncodedDataBufferSize];
+
 
 uint8_t ADCH_to_PWM[PWM_TABLE_SIZE] = {
 	8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,
@@ -72,6 +79,12 @@ int main(void)
 	tim1_init(TIM1_CHANNEL_A, TIM1_PRESCALE_64, TIM1_MODE_CTC_OCR1A, 0xFFFF, TIM1_COM_OC1x_DISCONNECTED, 0, TIM1_OC1x_DISABLE);
 	tim1_oc_interrupt_enable(TIM1_CHANNEL_A);
 	
+	// Initiating UART communication
+	// UART 8b, no parity, 1 stop bit, 9600 baud rate
+	uart_init(USART_SPEED_NORMAL, USART_CHARACTER_SIZE_8b, USART_PARITY_MODE_DISABLED, USART_STOP_BIT_1b, USART_MULTIPROCESSOR_COMMUNICATION_MODE_DISABLED, 12);
+	usart_data_register_empty_interrupt_enable();
+	usart_rx_interrupt_enable();
+	
 	// Activating interrupts
 	sei();
 	
@@ -81,9 +94,49 @@ int main(void)
     /* Replace with your application code */
     while (1) 
     {
+		UART_ParseAdafruitFeedData();
     }
 }
 
+void	UART_ParseAdafruitFeedData()
+{
+	if ((usart_get_received_length() > 0) && (((usart_get_received_byte((uint8_t)(usart_get_received_length() - 1))) == '\r') || ((usart_get_received_byte((uint8_t)(usart_get_received_length() - 1))) == '\n')))
+	{
+		// Using the EncodedData Receive Buffer for receiving the incoming data
+		usart_receive_string(EncodedData);
+		
+		// Starting the parsing process
+		
+		// Every DATA incoming shall have the following structure: "#X:VAL;"
+		// If the first received character is not "#", or the third one is not ":", the Data is trashed
+		if ((EncodedData[0] != '#') || (EncodedData[2] != ':')) usart_rx_buffer_flush();
+		
+		// If the DATA follows the structure, it is needed to know if the ID is correct
+		// Then, the ID is extracted from the EncodedData Receive Buffer
+		// As in ASCII all characters are correctly listed (A=65, B=66, C=67, ...), the following code shall look if the ID is valid 
+		// If 7 motors are to be controlled, the only possible ID's are 'A', 'B', 'C', 'D', 'E', 'F' and 'G'
+		// If any other character for the ID is used (i.e. 'H' or 'c'), subtracting 'A' from the ID will not give a result from 0 to 7
+		// If so, the DATA is trashed
+		char id = EncodedData[0];
+		uint8_t index = id - 'A';								// If the ID is correct, index should keep values from 0 to 7
+		if (index >= 7) usart_rx_buffer_flush();
+		
+		// If the DATA follows and structure AND the ID is correct, VAL is turned into a string
+		uint8_t DATA_Value = (uint8_t)atoi(&EncodedData[3]);	// 'atoi' turns VAL into a string up until ';'
+	
+		PWM_Values[4] = DATA_Value;
+	}
+}
+
+ISR(USART_UDRE_vect)
+{
+	usart_load_next_byte();
+}
+
+ISR(USART_RX_vect)
+{
+	usart_receive_bytes();
+}
 
 ISR(TIMER0_COMPA_vect)
 {
@@ -117,6 +170,11 @@ ISR(TIMER0_COMPA_vect)
 			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Values[3]]);
 			tim1_tcnt_value(0);
 			break;
+		case 4: 
+			PORTB	&= ~(0x1C);
+			PORTB	|= (1 << PORTB3) | (0 << PORTB3) | (0 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Values[4]]);
+			tim1_tcnt_value(0);
 		default: break;
 	}
 	
@@ -129,7 +187,7 @@ ISR(TIMER1_COMPA_vect)
 	
 	cli();
 	
-	if (TIM0_Count < 4) PORTB |= (1 << PORTB4);
+	if (TIM0_Count < 4) PORTB |= (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
 
 	//PORTB	^= (1 << PORTB2);
 	//PORTB	|= (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
