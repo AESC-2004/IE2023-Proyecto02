@@ -18,7 +18,7 @@
 #include "m328ptim1.h"
 
 // Decoding
-uint8_t PWM_Value	= 230;
+uint8_t PWM_Values[2]	= {230, 230};
 uint8_t TIM0_Count	= 0;
 
 // UART
@@ -113,14 +113,14 @@ void	UART_ParseAdafruitFeedData()
 		
 		// If the DATA follows and structure AND the ID is correct, VAL is turned into a string
 		uint8_t DATA_Value = (uint8_t)atoi(&EncodedData[3]);	// 'atoi' turns VAL into a string up until ';'
-		PWM_Value = DATA_Value;
 		
-		/*
-		// DEPURACION UART
-		char mensajeDebug[32];
-		sprintf(mensajeDebug, "PWM = %u\r\n", PWM_Value);
-		usart_transmit_string(mensajeDebug);
-		*/
+		// Data is copied to the correct PWM_Values[] index
+		switch (index)
+		{
+			case 0: PWM_Values[0] = DATA_Value;
+			case 1: PWM_Values[1] = DATA_Value;
+			default: break;
+		}
 		
 		usart_rx_buffer_flush();
 	}
@@ -153,7 +153,13 @@ ISR(TIMER0_COMPA_vect)
 		case 0:
 			PORTB	&= ~(0x1C);
 			PORTB	|= (0 << PORTB3) | (0 << PORTB3) | (0 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Value]);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Values[0]]);
+			tim1_tcnt_value(0);
+			break;
+		case 1: 
+			PORTB	&= ~(0x1C);
+			PORTB	|= (0 << PORTB3) | (0 << PORTB3) | (1 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Values[1]]);
 			tim1_tcnt_value(0);
 			break;
 		default: break;
