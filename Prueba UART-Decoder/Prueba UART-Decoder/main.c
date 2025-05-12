@@ -1,13 +1,14 @@
 /*
- * Prueba ADC-Decoder.c
+ * Prueba UART-Decoder.c
  *
- * Created: 10/05/2025 09:02:30 p. m.
+ * Created: 11/05/2025 07:00:50 p. m.
  * Author : ang50
  */ 
 
 #include <avr/pgmspace.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,18 +17,17 @@
 #include "m328ptims8b.h"
 #include "m328ptim1.h"
 
-
-
-uint8_t ADC_Count		= 0;
-uint8_t ADC_Lec			= 0;
-uint8_t PWM_Values[5]	= {0, 0, 0, 0, 255};
-
+// Decoding
+uint8_t PWM_Value	= 230;
 uint8_t TIM0_Count	= 0;
 
+// UART
 void	UART_ParseAdafruitFeedData();
 #define EncodedDataBufferSize 16
 char	EncodedData[EncodedDataBufferSize];
 
+
+// PWM
 #define PWM_TABLE_SIZE 256
 uint8_t ADCH_to_PWM[PWM_TABLE_SIZE] = {
 	8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,
@@ -58,18 +58,9 @@ int main(void)
 	CLKPR	|= (1 << CLKPCE);
 	CLKPR	= (0 << CLKPCE) | (0 << CLKPS3) | (1 << CLKPS2) | (0 << CLKPS1) | (0 << CLKPS0);
 	
+	
 	// Decoder
 	DDRB	|= (1 << DDB4) | (1 << DDB3) | (1 << DDB2);
-	
-	// Display
-	//DDRD	|= (1 << DDD7) | (1 << DDD6)| (1 << DDD5) | (1 << DDD4) | (1 << DDD3)| (1 << DDD2);
-	//PORTD	|= (1 << DDD7) | (1 << DDD6)| (1 << DDD5) | (1 << DDD4) | (1 << DDD3)| (1 << DDD2);
-	//DDRB	|= (1 << DDB1) | (1 << DDB0);
-	//PORTB	|= (1 << DDB1) | (1 << DDB0);
-	
-	// ADC
-	adc_init(ADC_REF_AVCC, ADC_PRESCALE_8, ADC_LEFT_ADJUST, ADC_CHANNEL_ADC7, ADC_INTERRUPT_ENABLE, ADC_AUTO_TRIGGER_DISABLE, ADC_TRIGGER_FREE_RUNNING);
-	DIDR0  |= (1 << ADC5D) | (1 << ADC4D); 
 	
 	// Initiating TIM0 for DECODING standards
 	tim0_init(TIM_8b_CHANNEL_A, TIM0_PRESCALE_64, TIM_8b_MODE_CTC_OCRA, 39, TIM_8b_COM_OCnx_DISCONNECTED, 0, TIM_8b_OCnx_DISABLE);
@@ -79,21 +70,21 @@ int main(void)
 	tim1_init(TIM1_CHANNEL_A, TIM1_PRESCALE_64, TIM1_MODE_CTC_OCR1A, 0xFFFF, TIM1_COM_OC1x_DISCONNECTED, 0, TIM1_OC1x_DISABLE);
 	tim1_oc_interrupt_enable(TIM1_CHANNEL_A);
 	
+	
 	// Initiating UART communication
 	// UART 8b, no parity, 1 stop bit, 9600 baud rate
 	uart_init(USART_SPEED_DOUBLE, USART_CHARACTER_SIZE_8b, USART_PARITY_MODE_DISABLED, USART_STOP_BIT_1b, USART_MULTIPROCESSOR_COMMUNICATION_MODE_DISABLED, 12);
+	//usart_data_register_empty_interrupt_enable();
 	usart_rx_interrupt_enable();
 	
 	// Activating interrupts
 	sei();
 	
-	// Initiating the first ADC Lecture
-	adc_start_conversion(); 
-	
     /* Replace with your application code */
     while (1) 
     {
 		UART_ParseAdafruitFeedData();
+		
     }
 }
 
@@ -112,7 +103,7 @@ void	UART_ParseAdafruitFeedData()
 		
 		// If the DATA follows the structure, it is needed to know if the ID is correct
 		// Then, the ID is extracted from the EncodedData Receive Buffer
-		// As in ASCII all characters are correctly listed (A=65, B=66, C=67, ...), the following code shall look if the ID is valid 
+		// As in ASCII all characters are correctly listed (A=65, B=66, C=67, ...), the following code shall look if the ID is valid
 		// If 7 motors are to be controlled, the only possible ID's are 'A', 'B', 'C', 'D', 'E', 'F' and 'G'
 		// If any other character for the ID is used (i.e. 'H' or 'c'), subtracting 'A' from the ID will not give a result from 0 to 7
 		// If so, the DATA is trashed
@@ -120,9 +111,16 @@ void	UART_ParseAdafruitFeedData()
 		uint8_t index = id - 'A';								// If the ID is correct, index should keep values from 0 to 7
 		if (index >= 7) {usart_rx_buffer_flush(); return;}
 		
-		// If the DATA follows and structure AND the ID is correct, VAL is turned into an integer (ASCII to Integer)
+		// If the DATA follows and structure AND the ID is correct, VAL is turned into a string
 		uint8_t DATA_Value = (uint8_t)atoi(&EncodedData[3]);	// 'atoi' turns VAL into a string up until ';'
-		PWM_Values[4] = DATA_Value;
+		PWM_Value = DATA_Value;
+		
+		/*
+		// DEPURACION UART
+		char mensajeDebug[32];
+		sprintf(mensajeDebug, "PWM = %u\r\n", PWM_Value);
+		usart_transmit_string(mensajeDebug);
+		*/
 		
 		usart_rx_buffer_flush();
 	}
@@ -131,8 +129,18 @@ void	UART_ParseAdafruitFeedData()
 
 ISR(USART_RX_vect)
 {
+	
 	usart_receive_bytes();
+	
 }
+
+ISR(USART_UDRE_vect)
+{
+	
+	usart_load_next_byte();
+	
+}
+
 
 ISR(TIMER0_COMPA_vect)
 {
@@ -145,32 +153,9 @@ ISR(TIMER0_COMPA_vect)
 		case 0:
 			PORTB	&= ~(0x1C);
 			PORTB	|= (0 << PORTB3) | (0 << PORTB3) | (0 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Values[0]]);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Value]);
 			tim1_tcnt_value(0);
 			break;
-		case 1:
-			PORTB	&= ~(0x1C);
-			PORTB	|= (0 << PORTB3) | (0 << PORTB3) | (1 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Values[1]]);
-			tim1_tcnt_value(0);
-			break;
-		case 2:
-			PORTB	&= ~(0x1C);
-			PORTB	|= (0 << PORTB3) | (1 << PORTB3) | (0 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Values[2]]);
-			tim1_tcnt_value(0);
-			break;
-		case 3:
-			PORTB	&= ~(0x1C);
-			PORTB	|= (0 << PORTB3) | (1 << PORTB3) | (1 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Values[3]]);
-			tim1_tcnt_value(0);
-			break;
-		case 4: 
-			PORTB	&= ~(0x1C);
-			PORTB	|= (1 << PORTB3) | (0 << PORTB3) | (0 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[PWM_Values[4]]);
-			tim1_tcnt_value(0);
 		default: break;
 	}
 	
@@ -184,50 +169,9 @@ ISR(TIMER1_COMPA_vect)
 	cli();
 	
 	if (TIM0_Count < 4) PORTB |= (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
-
-	//PORTB	^= (1 << PORTB2);
-	//PORTB	|= (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
-	//tim1_oc_interrupt_disable(TIM1_CHANNEL_A);
 	
 	sei();
 	
-}
-
-
-ISR(ADC_vect)
-{
-	
-	cli();
-	
-	ADC_Lec = ADCH;
-	switch (ADC_Count)
-	{
-		case 0:
-			ADC_Count = 1;
-			PWM_Values[0] = ADC_Lec;
-			adc_channel(ADC_CHANNEL_ADC6);
-			break;
-		case 1:
-			ADC_Count = 2;
-			PWM_Values[1] = ADC_Lec;
-			adc_channel(ADC_CHANNEL_ADC5);
-			break;
-		case 2:
-			ADC_Count = 3;
-			PWM_Values[2] = ADC_Lec;
-			adc_channel(ADC_CHANNEL_ADC4);
-			break;
-		case 3:
-			ADC_Count = 0;
-			PWM_Values[3] = ADC_Lec;
-			adc_channel(ADC_CHANNEL_ADC7);
-			break;
-		default: break;
-		
-	}
-	adc_start_conversion();
-	
-	sei();
 }
 
 
