@@ -5,6 +5,7 @@
  * Author : ang50
  */ 
 
+//Prueba
 #include <avr/pgmspace.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -27,9 +28,9 @@ uint8_t ADC_Lec			= 0;
 uint8_t Mode			= MANUAL;
 
 typedef struct {
-	uint8_t	Adafruit[7];
+	uint8_t	Adafruit[8];
 	uint8_t Manual[4];
-	uint8_t Usable[7];
+	uint8_t Usable[8];
 	} MotorDecoding;
 
 MotorDecoding Motors;
@@ -76,8 +77,8 @@ int main(void)
 	
 	
 	// Decoder
-	//DDRB	|= (1 << DDB5) | (1 << DDB4) | (1 << DDB3) | (1 << DDB2);
-	DDRB	|= (1 << DDB4) | (1 << DDB3) | (1 << DDB2);
+	DDRB	|= (1 << DDB5) | (1 << DDB4) | (1 << DDB3) | (1 << DDB2);
+	//DDRB	|= (1 << DDB4) | (1 << DDB3) | (1 << DDB2);
 	
 	// ADC
 	adc_init(ADC_REF_AVCC, ADC_PRESCALE_8, ADC_LEFT_ADJUST, ADC_CHANNEL_ADC7, ADC_INTERRUPT_ENABLE, ADC_AUTO_TRIGGER_DISABLE, ADC_TRIGGER_FREE_RUNNING);
@@ -173,7 +174,7 @@ void	UART_ParseAdafruitFeedData()
 			case 4: {Motors.Adafruit[4] = DATA_Value; break;}
 			case 5: {Motors.Adafruit[5] = DATA_Value; break;}
 			case 6: {Motors.Adafruit[6] = DATA_Value; break;}
-			//case 7: {Motors.Adafruit[7] = DATA_Value; break;}
+			case 7: {Motors.Adafruit[7] = DATA_Value; break;}
 			
 			default: break;
 		}
@@ -207,61 +208,81 @@ ISR(TIMER0_COMPA_vect)
 	switch (TIM0_Count)
 	{
 		case 0:
-			//PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			PORTB	&= ~(0x1C);
+			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			/*
 			PORTB	&= ~(0x1C);
 			PORTB	|= (0 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			*/
 			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[0]]);
 			tim1_tcnt_value(0);
 			break;
 		case 1:
-			//PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			PORTB	&= ~(0x1C);
+			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			/*
 			PORTB	&= ~(0x1C);
 			PORTB	|= (0 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			*/
 			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[1]]);
 			tim1_tcnt_value(0);
 			break;
 		case 2:
-			//PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			PORTB	&= ~(0x1C);
+			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			/*
 			PORTB	&= ~(0x1C);
 			PORTB	|= (0 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			*/
 			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[2]]);
 			tim1_tcnt_value(0);
 			break;
 		case 3:
-			//PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
+			PORTB	&= ~(0x1C);
+			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
+			/*
 			PORTB	&= ~(0x1C);
 			PORTB	|= (0 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
+			*/
 			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[3]]);
 			tim1_tcnt_value(0);
 			break;
 		case 4:
-			//PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			PORTB	&= ~(0x1C);
+			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			/*
 			PORTB	&= ~(0x1C);
 			PORTB	|= (1 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			*/
 			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[4]]);
 			tim1_tcnt_value(0);
 			break;
 		case 5:
-			//PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			PORTB	&= ~(0x1C);
+			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			/*
 			PORTB	&= ~(0x1C);
 			PORTB	|= (1 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			*/
 			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[5]]);
 			tim1_tcnt_value(0);
 			break;
 		case 6:
-			//PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			PORTB	&= ~(0x1C);
+			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			/*
 			PORTB	&= ~(0x1C);
 			PORTB	|= (1 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			*/
 			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[6]]);
 			tim1_tcnt_value(0);
 			break;
-		/*
 		case 7: 
+			PORTB	&= ~(0x1C);
 			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
 			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[7]]);
 			tim1_tcnt_value(0);
 			break;
-		*/
 		default: break;
 	}
 	
@@ -274,8 +295,8 @@ ISR(TIMER1_COMPA_vect)
 	
 	cli();
 	
-	//if (TIM0_Count < 4) PORTB	&= ~(0x3C);
-	if (TIM0_Count < 7) PORTB	|= (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2); 
+	if (TIM0_Count < 8) PORTB	&= ~(1 << PORTB5);
+	//if (TIM0_Count < 7) PORTB	|= (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2); 
 	
 	sei();
 	
