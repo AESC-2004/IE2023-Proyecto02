@@ -115,6 +115,8 @@ int main(void)
 	
 	while (1)
 	{
+		Selection_Mode = Operation_Mode_Selection;
+		
 		// Checking for incoming DATA from Adafruit
 		UART_ParseAdafruitFeedData();
 		
@@ -157,10 +159,10 @@ int main(void)
 			PORTD	|= DISP7SEG_MODES_PD[Operation_Mode];
 		}
 		
-		/*
+		
 		// Checking if a new operation mode is required
 		if ((Operation_Mode_Selection == DISABLED) && (Next_Operation_Mode != Operation_Mode)) Operation_Mode = Next_Operation_Mode;
-		*/
+		
 	}
 }
 
@@ -181,14 +183,14 @@ void SETUP()
 	DDRB	|= (1 << DDB1) | (1 << DDB0);
 	PORTB	|= (1 << DDB1);
 	
-	/*
+	
 	// Encoder
 	DDRC	&= ~((1 << DDC3) | (1 << DDC2) | (1 << DDC1));
 	PORTC	|= (1 << DDC3);									// Pull-up enabled for SW
 	PORTC	&= ~((1 << DDC2) | (1 << DDC1));				// Pull-up disabled for DATA and CLK
 	PCICR	|= (1 << PCIE1);
 	PCMSK1	|= (1 << PCINT11) | (1 << PCINT9);				// Masked SW and DATA only for PC ISR
-	*/
+	
 	
 	// Decoder
 	DDRB	|= (1 << DDB5) | (1 << DDB4) | (1 << DDB3) | (1 << DDB2);
@@ -283,7 +285,7 @@ ISR(USART_RX_vect)
 }
 
 
-/*
+
 // PCINT interrupt routine. It shall be checked which action is needed (Depending which pin changed)
 ISR(PCINT1_vect)
 {
@@ -292,23 +294,12 @@ ISR(PCINT1_vect)
 	// SW logic
 	// PINC3 value is saved
 	uint8_t SW_State = (PINC & (1 << PINC3)) ? 1 : 0;
-	// If SW is being pushed, and if it was not being pressed before, TIM2 starts
-	if ((SW_State == 0) && ENCODER_SW_Last == 1)			// Falling edge detected: SW pushed
+	// If SW was being pushed, but not anymore, pushed anymore
+	if (SW_State == 1 && ENCODER_SW_Last == 0)			// Rising edge detected: SW liberated
 	{
-		tim_8b_tcnt_value(TIM_8b_NUM_2, 0);
-		tim_8b_ovf_interrupt_enable(TIM_8b_NUM_2);
-	}
-	// If SW is not pushed anymore (If being pressed before), and if the total pushed time
-	// is less than 2secs, Operation_Mode_Selection is updated
-	else if (SW_State == 1 && ENCODER_SW_Last == 0)			// Rising edge detected: SW liberated
-	{
-		tim_8b_ovf_interrupt_disable(TIM_8b_NUM_2);
-		if (ENCODER_SW_Push_Time < 122)
-		{
-			ENCODER_SW_Push_Time = 0;
-			if (Operation_Mode_Selection == DISABLED) {Operation_Mode_Selection = ENABLED;}
-			else {Operation_Mode_Selection = DISABLED;}
-		}
+		ENCODER_SW_Push_Time = 0;
+		if (Operation_Mode_Selection == DISABLED) {Operation_Mode_Selection = ENABLED;}
+		else {Operation_Mode_Selection = DISABLED;}
 	}
 	ENCODER_SW_Last = SW_State;								// ENCODER_SW_Last updated
 	
@@ -327,9 +318,8 @@ ISR(PCINT1_vect)
 		}	
 	}
 	
-
 }
-*/
+
 
 
 // TIM0 OC0A interrupt routine. "TIM0_Count" is incremented, and depending it's value, the decoder's selector bits are correctly
