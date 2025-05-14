@@ -23,10 +23,10 @@ run_count = 0
 # Remember, your key is a secret,
 # so make sure not to publish it when you publish this code!
 ADAFRUIT_IO_USERNAME = "esc22235"
-ADAFRUIT_IO_KEY = "aio_xlek35pRAVlxh5cEggpkdNuu8aRn"
+ADAFRUIT_IO_KEY = "aio_aseE63XVvgd5DtHeUo7LdT3NdWmh"
 
 # Set to the ID of the feed to subscribe to for updates.
-FEEDS_RECEIVE = ['Motor1_TX', 'Motor2_TX', 'Motor3_TX', 'Motor4_TX']
+FEEDS_RECEIVE = ['Motor1_TX', 'Motor2_TX', 'Motor3_TX', 'Motor4_TX', 'Motor5_TX', 'Motor6_TX', 'Motor7_TX']
 FEED_ID_Send = 'Counter_RX'
 
 # Define "callback" functions which will be called when certain events 
@@ -66,6 +66,12 @@ def message(client, feed_id, payload):
         arduino.write(bytes('#C:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'Motor4_TX':
         arduino.write(bytes('#D:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+    elif    feed_id == 'Motor5_TX':
+        arduino.write(bytes('#E:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+    elif    feed_id == 'Motor6_TX':
+        arduino.write(bytes('#F:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+    elif    feed_id == 'Motor7_TX':
+        arduino.write(bytes('#G:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
     time.sleep(0.5)
     
 
