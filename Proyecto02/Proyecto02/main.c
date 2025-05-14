@@ -135,6 +135,7 @@ int main(void)
 			default: break;
 		}
 		
+		/*
 		// Updating the display value
 		// Checking if selection mode is enabled
 		// If so, the display's blink state is revised
@@ -157,6 +158,7 @@ int main(void)
 		
 		// Checking if a new operation mode is required
 		if ((Selection_Mode == DISABLED) && (Next_Operation_Mode != Operation_Mode)) Operation_Mode = Next_Operation_Mode;
+		*/
 	}
 }
 
@@ -172,6 +174,7 @@ void SETUP()
 	CLKPR	|= (1 << CLKPCE);
 	CLKPR	= (0 << CLKPCE) | (0 << CLKPS3) | (1 << CLKPS2) | (0 << CLKPS1) | (0 << CLKPS0);
 	
+	/*
 	// Display
 	DDRD	|= (1 << DDD7) | (1 << DDD6) | (1 << DDD5) | (1 << DDD4) | (1 << DDD3)| (1 << DDD2);
 	DDRB	|= (1 << DDB1) | (1 << DDB0);
@@ -183,6 +186,7 @@ void SETUP()
 	PORTC	&= ~((1 << DDC2) | (1 << DDC1));			// Pull-up disabled for DATA and CLK
 	PCICR	|= (1 << PCIE1);
 	PCMSK1	|= (1 << PCINT11) | (1 << PCINT9);			// Masked SW and DATA only for PC ISR
+	*/
 	
 	// Decoder
 	DDRB	|= (1 << DDB5) | (1 << DDB4) | (1 << DDB3) | (1 << DDB2);
@@ -276,6 +280,7 @@ ISR(USART_RX_vect)
 }
 
 
+/*
 // PCINT interrupt routine. It shall be checked which action is needed (Depending which pin changed)
 ISR(PCINT1_vect)
 {
@@ -321,6 +326,7 @@ ISR(PCINT1_vect)
 	
 
 }
+*/
 
 
 // TIM0 OC0A interrupt routine. "TIM0_Count" is incremented, and depending it's value, the decoder's selector bits are correctly
@@ -329,7 +335,7 @@ ISR(TIMER0_COMPA_vect)
 {
 	cli();
 	
-	Blink_Count++;
+	//Blink_Count++;
 	TIM0_Count++;
 	if (TIM0_Count == 8) TIM0_Count = 0;
 	switch (TIM0_Count)
@@ -409,6 +415,7 @@ ISR(TIMER0_COMPA_vect)
 }
 
 
+/*
 // TIM2 OVF interrupt routine. the encoder´s switch pushing time is updated and checked. If it is pushed more than
 // 2 secs., the EEPROM save mode is enabled.
 ISR(TIMER2_OVF_vect)
@@ -417,7 +424,7 @@ ISR(TIMER2_OVF_vect)
 	
 	ENCODER_SW_Push_Time++;
 	
-	/*
+	
 	// If 2secs. are reached WHILE PRESSING (!(PINC & (1 << PINC3))), the count mode is updated
 	if ((ENCODER_SW_Push_Time >= 122) && !(PINC & (1 << PINC3)))
 	{
@@ -426,11 +433,12 @@ ISR(TIMER2_OVF_vect)
 		if (Count_Mode == MANUAL) Count_Mode = AUTO;
 		else Count_Mode = MANUAL;
 	}
-	*/
+	
 
 	sei();
 
 }
+*/
 
 // TIM1 OC1A interrupt routine. The decoder is disabled.
 ISR(TIMER1_COMPA_vect)
