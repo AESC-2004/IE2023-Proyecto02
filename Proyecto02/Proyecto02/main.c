@@ -35,13 +35,13 @@ uint8_t DISP7SEG_NUMS_PD[10] = {0xFC, 0x18, 0x6C,
 								0x3C, 0x98, 0xB4, 
 								0xF0, 0x1C, 0xFC, 
 								0x9C};
-uint8_t DISP7SEG_NUMS_PB[10] = {0,    0,    1, 
+uint8_t DISP7SEG_NUMS_PC[10] = {0,    0,    1, 
 								1,    1,    1,
 								1,    0,    1, 
 								1};	
 								
 uint8_t DISP7SEG_MODES_PD[3] = {0xD8, 0xDC, 0xE4};			// [0] = "H"; [1] = "A"; [2] = "E";
-uint8_t DISP7SEG_MODES_PB[3] = {1, 1, 1}; 
+uint8_t DISP7SEG_MODES_PC[3] = {1, 1, 1}; 
 
 
 // ADC variables
@@ -91,9 +91,11 @@ uint8_t ADCH_to_PWM[PWM_TABLE_SIZE] = {					// List kept in RAM for accessing th
 };
 
 
-// Blinking variables									// Used for timing them display's blinks
+// Blinking variables	// Used for timing them display's blinks
+#define ON				  1	
+#define OFF				  0							
 uint8_t Blink_Count		= 0;
-uint8_t Blink_State		= (1 << PORTB1);
+uint8_t Blink_State		= ON;
 uint8_t Selection_Mode = 1;
 
 
@@ -150,13 +152,26 @@ int main(void)
 		// If not, the operation mode LED's mapping is disposed
 		if (Operation_Mode_Selection == ENABLED)
 		{
-			PORTD	&= ~(0xFC);								// Clearing the last value
-			PORTD	|= DISP7SEG_MODES_PD[Next_Operation_Mode];
-			
+			if (Blink_Count == 0) 
+			{
+				if (Blink_State == ON)
+				{
+					PORTD	&= ~(0xFC);						// Clearing the last value
+					PORTD	|= DISP7SEG_MODES_PD[Next_Operation_Mode];
+					PORTC	&= ~(0x01);
+					PORTC	|= DISP7SEG_MODES_PC[Next_Operation_Mode];
+				} else
+				{
+					PORTD	&= ~(0xFC);
+					PORTC	&= ~(0x01);
+				}
+			}		
 		} else 
 		{
 			PORTD	&= ~(0xFC);								// Clearing the last value
 			PORTD	|= DISP7SEG_MODES_PD[Operation_Mode];
+			PORTC	&= ~(0x01);
+			PORTC	|= DISP7SEG_MODES_PC[Operation_Mode];
 		}
 		
 		
@@ -180,8 +195,7 @@ void SETUP()
 	
 	// Display
 	DDRD	|= (1 << DDD7) | (1 << DDD6) | (1 << DDD5) | (1 << DDD4) | (1 << DDD3)| (1 << DDD2);
-	DDRB	|= (1 << DDB1) | (1 << DDB0);
-	PORTB	|= (1 << DDB1);
+	DDRC	|= (1 << DDC0);
 	
 	
 	// Encoder
@@ -329,167 +343,60 @@ ISR(TIMER0_COMPA_vect)
 	cli();
 
 	Blink_Count++;
-	if (Blink_Count == 122) {Blink_Count = 0; Blink_State ^= (1 << PORTB1);}
+	if (Blink_Count == 122) 
+	{
+		Blink_Count = 0; 
+		if (Blink_State == ON) Blink_State = OFF;
+		else Blink_State = ON;
+	}
+	
 	TIM0_Count++;
 	if (TIM0_Count == 8) TIM0_Count = 0;
 	
-	
-	// If any of them selection modes is enabled, blinking is enabled too. Then, PORTB should be updated as required
-	/*
-	if (Operation_Mode_Selection == ENABLED)
+	switch (TIM0_Count)
 	{
-		if (Blink_State == 0) PORTB &= ~(0x02);
-		else PORTB |= (0x02);
+		case 0:
+			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[0]]);
+			tim1_tcnt_value(0);
+			break;
+		case 1:
+			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[1]]);
+			tim1_tcnt_value(0);
+			break;
+		case 2:
+			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[2]]);
+			tim1_tcnt_value(0);
+			break;
+		case 3:
+			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[3]]);
+			tim1_tcnt_value(0);
+			break;
+		case 4:
+			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[4]]);
+			tim1_tcnt_value(0);
+			break;
+		case 5:
+			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[5]]);
+			tim1_tcnt_value(0);
+			break;
+		case 6:
+			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[6]]);
+			tim1_tcnt_value(0);
+			break;
+		case 7:
+			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
+			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[7]]);
+			tim1_tcnt_value(0);
+			break;
+		default: break;
 	}
-	*/
-	
-	if (Selection_Mode == ENABLED)
-	{
-		switch (Blink_State)
-		{
-			case (1 << PORTB1):
-				switch (TIM0_Count)
-				{
-					case 0:
-						PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (0 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[0]]);
-						tim1_tcnt_value(0);
-						break;
-					case 1:
-						PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[1]]);
-						tim1_tcnt_value(0);
-						break;
-					case 2:
-						PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (0 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[2]]);
-						tim1_tcnt_value(0);
-						break;
-					case 3:
-						PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[3]]);
-						tim1_tcnt_value(0);
-						break;
-					case 4:
-						PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (0 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[4]]);
-						tim1_tcnt_value(0);
-						break;
-					case 5:
-						PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[5]]);
-						tim1_tcnt_value(0);
-						break;
-					case 6:
-						PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (0 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[6]]);
-						tim1_tcnt_value(0);
-						break;
-					case 7:
-						PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[7]]);
-						tim1_tcnt_value(0);
-						break;
-					default: break;
-				}
-				break;
-			case (0 << PORTB1):
-				switch (TIM0_Count)
-				{
-					case 0:
-						PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (0 << PORTB2) | (0 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[0]]);
-						tim1_tcnt_value(0);
-						break;
-					case 1:
-						PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (1 << PORTB2) | (0 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[1]]);
-						tim1_tcnt_value(0);
-						break;
-					case 2:
-						PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (0 << PORTB2) | (0 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[2]]);
-						tim1_tcnt_value(0);
-						break;
-					case 3:
-						PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (1 << PORTB2) | (0 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[3]]);
-						tim1_tcnt_value(0);
-						break;
-					case 4:
-						PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (0 << PORTB2) | (0 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[4]]);
-						tim1_tcnt_value(0);
-						break;
-					case 5:
-						PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (1 << PORTB2) | (0 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[5]]);
-						tim1_tcnt_value(0);
-						break;
-					case 6:
-						PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (0 << PORTB2) | (0 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[6]]);
-						tim1_tcnt_value(0);
-						break;
-					case 7:
-						PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2) | (0 << PORTB1) | (1 << PORTB0);
-						tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[7]]);
-						tim1_tcnt_value(0);
-						break;
-					default: break;
-				}
-				break;
-			default: break;	
-		}
-	}
-	else 
-	{
-		switch (TIM0_Count)
-		{
-			case 0:
-				PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (0 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-				tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[0]]);
-				tim1_tcnt_value(0);
-				break;
-			case 1:
-				PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-				tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[1]]);
-				tim1_tcnt_value(0);
-				break;
-			case 2:
-				PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (0 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-				tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[2]]);
-				tim1_tcnt_value(0);
-				break;
-			case 3:
-				PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-				tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[3]]);
-				tim1_tcnt_value(0);
-				break;
-			case 4:
-				PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (0 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-				tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[4]]);
-				tim1_tcnt_value(0);
-				break;
-			case 5:
-				PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-				tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[5]]);
-				tim1_tcnt_value(0);
-				break;
-			case 6:
-				PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (0 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-				tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[6]]);
-				tim1_tcnt_value(0);
-				break;
-			case 7:
-				PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2) | (1 << PORTB1) | (1 << PORTB0);
-				tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[7]]);
-				tim1_tcnt_value(0);
-				break;
-			default: break;
-		}
-	}
-	
 	
 	sei();
 }
@@ -526,7 +433,6 @@ ISR(TIMER1_COMPA_vect)
 	
 	cli();
 	
-	// For avoiding flickering, all pins in PB, except PB1, are driven low
 	if (TIM0_Count < 8) PORTB &= 0;
 	
 	sei();
