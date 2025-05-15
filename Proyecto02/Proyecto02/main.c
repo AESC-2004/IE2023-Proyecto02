@@ -7,6 +7,7 @@
 
 /*********************************************************************************************************************************************************************************************************************/
 // Libraries
+#include <avr/eeprom.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdint.h>
@@ -49,9 +50,10 @@ uint8_t ADC_Count				= 0;					// Used for selecting which channel the ADC should
 uint8_t ADC_Lec					= 0;					// Used for keeping the last ADC Lecture
 
 
-// Decoder variables
+// Decoder variables, buffers and data structures
 #define MANUAL					  0						// A "define" that'll come handy for establishing the operation mode
 #define ADAFRUIT				  1						// A "define" that'll come handy for establishing the operation mode
+#define EEPROM					  2						// A "define" that'll come handy for establishing the operation mode
 uint8_t Operation_Mode			= MANUAL;				// Used for establishing the motor's positions mode
 uint8_t Next_Operation_Mode		= MANUAL;				// Used for defining the next motor's operation mode if the encoder is used
 														// and if selection mode is enabled
@@ -60,11 +62,11 @@ typedef struct {
 	uint8_t Manual[4];
 	uint8_t Usable[8];
 } MotorDecoding;
-MotorDecoding Motors;									// A struct for organizing them motor's positions depending on the mode
+MotorDecoding Motors;									// A struct for organizing them motor'9s positions depending on the mode
 uint8_t TIM0_Count		= 0;							// Used for knowing which Selector's signal to send to the decoder
 	
 	
-// UART data structure
+// UART buffer
 #define EncodedDataBufferSize 16
 char	EncodedData[EncodedDataBufferSize];				// Buffer used for keeping the incoming Adafruit data
 
@@ -91,22 +93,28 @@ uint8_t ADCH_to_PWM[PWM_TABLE_SIZE] = {					// List kept in RAM for accessing th
 };
 
 
-// Blinking variables	// Used for timing them display's blinks
-#define ON				  1	
-#define OFF				  0							
-uint8_t Blink_Count		= 0;
-uint8_t Blink_State		= ON;
-uint8_t Selection_Mode = 1;
+// Blinking variables									// Used for timing them display's blinks
+#define ON					  1	
+#define OFF					  0							
+uint8_t Blink_Count			= 0;
+uint8_t Blink_State			= ON;
+uint8_t Any_Selection_Mode	= 1;
 
 
 // EEPROM
-// uint8_t EEPROM_Selection_Mode = DISABLED;
+uint8_t EEPROM_Selection_Mode		= DISABLED;
+uint8_t EEPROM_Selected_Position	= 0;
+#define BytesPerArrange				  8
+#define StoredArrangements			  4
+#define TotalEEPROM			  (BytesPerArrange*StoredArrangements)
 
 /*********************************************************************************************************************************************************************************************************************/
 // Function prototypes
 
 void	SETUP();
 void	UART_ParseAdafruitFeedData();
+void	EEPROM_StoreMotorsArrange(uint8_t Position_Number, const uint8_t* Arrange);
+void	EEPROM_ReadMotorsArrange(uint8_t Position_Number, uint8_t* Destination_Location);
 
 /*********************************************************************************************************************************************************************************************************************/
 // Main Function
@@ -117,74 +125,89 @@ int main(void)
 	
 	while (1)
 	{
-		Selection_Mode = Operation_Mode_Selection;
 		
 		// Checking for incoming DATA from Adafruit
 		UART_ParseAdafruitFeedData();
 		
-		// Depending on the mode, values are updated to MotorDecoding.Usable[]
-		// However, no matter the mode, Motors[5,6,7,8] are always driven by Adafruit
-		for (uint8_t i = 4; i < 8; i++) { Motors.Usable[i] = Motors.Adafruit[i];}
+		// Checking if a new operation mode is required. If so, the operation mode is updated
+		if ((Operation_Mode_Selection == DISABLED) && (Next_Operation_Mode != Operation_Mode)) Operation_Mode = Next_Operation_Mode;
 		
+		// Updating if any selection mode is enabled
+		if ((Operation_Mode_Selection == ENABLED) || (EEPROM_Selection_Mode == ENABLED)) Any_Selection_Mode = ENABLED;
+		else Any_Selection_Mode = DISABLED;
+		
+		// Depending on the mode, values are updated to MotorDecoding.Usable[]
+		// No matter if MANUAL mode is required, Motors[5,6,7,8] are driven by Adafruit
 		switch (Operation_Mode)
 		{
 			case MANUAL:
-			{
-				for (uint8_t i = 0; i < 4; i++) {
-					Motors.Usable[i] = Motors.Manual[i];
-				}
+				for (uint8_t i = 0; i < 4; i++) {Motors.Usable[i] = Motors.Manual[i];}
+				for (uint8_t i = 4; i < 8; i++) {Motors.Usable[i] = Motors.Adafruit[i];}
 				break;
-			}
 			case ADAFRUIT:
-			{
-				for (uint8_t i = 0; i < 4; i++) {
-					Motors.Usable[i] = Motors.Adafruit[i];
+				for (uint8_t i = 0; i < 8; i++) {Motors.Usable[i] = Motors.Adafruit[i];}
+				break;
+			case EEPROM:
+				switch (EEPROM_Selected_Position)
+				{
+					case 0: {EEPROM_ReadMotorsArrange(0, Motors.Usable); break;}
+					case 1: {EEPROM_ReadMotorsArrange(1, Motors.Usable); break;}
+					case 2: {EEPROM_ReadMotorsArrange(2, Motors.Usable); break;}
+					case 3: {EEPROM_ReadMotorsArrange(3, Motors.Usable); break;}
 				}
 				break;
-			}
 			default: break;
 		}
 		
-		
 		// Updating the display value
-		// Checking if selection mode is enabled
-		// If so, the display's blink state is revised
-		// If not, the operation mode LED's mapping is disposed
-		if (Operation_Mode_Selection == ENABLED)
+		// Checking if ANY selection mode is enabled. If so, the display's blink state is revised
+		// If not, the LED's mapping is disposed depending the mode
+		if (Any_Selection_Mode == ENABLED)
 		{
-			if (Blink_Count == 0) 
+			switch (EEPROM_Selection_Mode)
 			{
-				if (Blink_State == ON)
-				{
-					PORTD	&= ~(0xFC);						// Clearing the last value
-					PORTD	|= DISP7SEG_MODES_PD[Next_Operation_Mode];
-					PORTC	&= ~(0x01);
-					PORTC	|= DISP7SEG_MODES_PC[Next_Operation_Mode];
-				} else
-				{
-					PORTD	&= ~(0xFC);
-					PORTC	&= ~(0x01);
-				}
-			}		
+				case DISABLED:
+					if (Blink_State == ON)
+					{
+						PORTD	&= ~(0xFC);
+						PORTD	|= DISP7SEG_MODES_PD[Next_Operation_Mode];
+						PORTC	&= ~(0x01);
+						PORTC	|= DISP7SEG_MODES_PC[Next_Operation_Mode];
+					} else
+					{
+						PORTD	&= ~(0xFC);
+						PORTC	&= ~(0x01);
+					}
+					break;
+				case ENABLED:
+					if (Blink_State == ON)
+					{
+						PORTD	&= ~(0xFC);
+						PORTD	|= DISP7SEG_NUMS_PD[EEPROM_Selected_Position+1];
+						PORTC	&= ~(0x01);
+						PORTC	|= DISP7SEG_NUMS_PC[EEPROM_Selected_Position+1];
+					} else
+					{
+						PORTD	&= ~(0xFC);
+						PORTC	&= ~(0x01);
+					}
+					break;
+				default: break;
+			}			
 		} else 
 		{
-			PORTD	&= ~(0xFC);								// Clearing the last value
+			PORTD	&= ~(0xFC);								
 			PORTD	|= DISP7SEG_MODES_PD[Operation_Mode];
 			PORTC	&= ~(0x01);
 			PORTC	|= DISP7SEG_MODES_PC[Operation_Mode];
 		}
-		
-		
-		// Checking if a new operation mode is required
-		if ((Operation_Mode_Selection == DISABLED) && (Next_Operation_Mode != Operation_Mode)) Operation_Mode = Next_Operation_Mode;
-		
 	}
 }
 
 /*********************************************************************************************************************************************************************************************************************/
 // NON-Interrupt subroutines
 
-void SETUP()
+void	SETUP()
 {
 	// Deactivating interrupts
 	cli();
@@ -221,16 +244,23 @@ void SETUP()
 	tim1_init(TIM1_CHANNEL_A, TIM1_PRESCALE_64, TIM1_MODE_CTC_OCR1A, 0xFFFF, TIM1_COM_OC1x_DISCONNECTED, 0, TIM1_OC1x_DISABLE);
 	tim1_oc_interrupt_enable(TIM1_CHANNEL_A);
 	
-	/*
 	// Initiating TIM2 for counting up to 2 secs. when needed
 	tim2_init(TIM_8b_CHANNEL_A, TIM2_PRESCALE_1024, TIM_8b_MODE_NORMAL, 0, TIM_8b_COM_OCnx_DISCONNECTED, 0, TIM_8b_OCnx_DISABLE);
-	tim_8b_ovf_interrupt_enable(TIM_8b_NUM_2);
-	*/
 	
 	// Initiating UART communication
 	// UART 8b, no parity, 1 stop bit, 9600 baud rate
 	uart_init(USART_SPEED_DOUBLE, USART_CHARACTER_SIZE_8b, USART_PARITY_MODE_DISABLED, USART_STOP_BIT_1b, USART_MULTIPROCESSOR_COMMUNICATION_MODE_DISABLED, 12);
 	usart_rx_interrupt_enable();
+	
+	// Cargando valores iniciales para cada posición de EEPROM (Prueba)
+	uint8_t	POS1[8] = {50, 0, 0, 0, 0, 0, 0, 0};
+	uint8_t	POS2[8] = {100, 0, 0, 0, 0, 0, 0, 0};
+	uint8_t	POS3[8] = {10, 0, 0, 0, 0, 0, 0, 0};
+	uint8_t	POS4[8] = {220, 0, 0, 0, 0, 0, 0, 0};
+	EEPROM_StoreMotorsArrange(0, POS1);
+	EEPROM_StoreMotorsArrange(1, POS2);
+	EEPROM_StoreMotorsArrange(2, POS3);
+	EEPROM_StoreMotorsArrange(3, POS4);
 	
 	// Activating interrupts
 	sei();
@@ -287,6 +317,23 @@ void	UART_ParseAdafruitFeedData()
 	}
 }
 
+
+// EEPROM_StoreMotorsArrange function. The position number shall be declared for the storage address to be correctly defined.
+void	EEPROM_StoreMotorsArrange(uint8_t Position_Number, const uint8_t* Arrange)
+{
+	uint16_t Address	= Position_Number*BytesPerArrange;
+	eeprom_update_block(Arrange, (void*)Address, BytesPerArrange);
+}
+
+
+// EEPROM_ReadMotorsArrange function. The position number shall be declared for the reading address to be correctly defined.
+void	EEPROM_ReadMotorsArrange(uint8_t Position_Number, uint8_t* Destination_Location)
+{
+	uint16_t Address	= Position_Number*BytesPerArrange;
+	eeprom_read_block((void*)Destination_Location, (const void*)Address, BytesPerArrange);
+}
+	
+
 /*********************************************************************************************************************************************************************************************************************/
 // Interrupt routines
 
@@ -304,16 +351,28 @@ ISR(USART_RX_vect)
 ISR(PCINT1_vect)
 {
 
-	
 	// SW logic
 	// PINC3 value is saved
 	uint8_t SW_State = (PINC & (1 << PINC3)) ? 1 : 0;
-	// If SW was being pushed, but not anymore, pushed anymore
-	if (SW_State == 1 && ENCODER_SW_Last == 0)			// Rising edge detected: SW liberated
+	// If SW is being pushed, and if it was not being pressed before, TIM2 starts
+	if ((SW_State == 0) && ENCODER_SW_Last == 1)			// Falling edge detected: SW pushed
 	{
-		ENCODER_SW_Push_Time = 0;
-		if (Operation_Mode_Selection == DISABLED) {Operation_Mode_Selection = ENABLED;}
-		else {Operation_Mode_Selection = DISABLED;}
+		tim_8b_tcnt_value(TIM_8b_NUM_2, 0);
+		tim_8b_ovf_interrupt_enable(TIM_8b_NUM_2);
+	}
+	// If SW was being pushed, but not anymore, the selection mode is updated
+	if ((SW_State == 1) && (ENCODER_SW_Last == 0))			// Rising edge detected: SW liberated
+	{
+		tim_8b_ovf_interrupt_disable(TIM_8b_NUM_2);
+		if (ENCODER_SW_Push_Time < 122)
+		{
+			ENCODER_SW_Push_Time = 0;
+			if (Operation_Mode_Selection == DISABLED) Operation_Mode_Selection = ENABLED;
+			else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode != EEPROM) && (EEPROM_Selection_Mode == DISABLED)) Operation_Mode_Selection = DISABLED;
+			else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode == EEPROM) && (EEPROM_Selection_Mode == DISABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = ENABLED;}
+			else if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
+			else if ((Operation_Mode_Selection == ENABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
+		}
 	}
 	ENCODER_SW_Last = SW_State;								// ENCODER_SW_Last updated
 	
@@ -323,13 +382,32 @@ ISR(PCINT1_vect)
 	uint8_t CLK_State = (PINC & (1 << PINC1));
 	if (!CLK_State)											// Falling edge detected: Encoder spin
 	{
-	// Depending if selection mode is enabled or not, an action is made
-	// If selection mode is enabled, the operation mode is changed 	
-		if (Operation_Mode_Selection == ENABLED)
+	// Depending if any selection mode is enabled or not, an action is made
+	// If operation mode selection is enabled, the NEXT* operation mode is changed
+	// If EEPROM selection mode is enabled, the EEPROM selected position is updated	
+		if ((Operation_Mode_Selection == ENABLED) && (EEPROM_Selection_Mode == DISABLED))
 		{
-			if (Next_Operation_Mode == MANUAL) {Next_Operation_Mode = ADAFRUIT;}
-			else {Next_Operation_Mode = MANUAL;}
-		}	
+			if (DATA_State)
+			{
+				Next_Operation_Mode++;
+				if (Next_Operation_Mode == 3) Next_Operation_Mode = MANUAL;
+			} else if (!DATA_State) 
+			{
+				Next_Operation_Mode--;
+				if (Next_Operation_Mode == 255) Next_Operation_Mode = EEPROM;
+			}
+		} else if (EEPROM_Selection_Mode == ENABLED)
+		{
+			if (DATA_State)
+			{
+				EEPROM_Selected_Position++;
+				if (EEPROM_Selected_Position == 4) EEPROM_Selected_Position = 0;
+			} else if (!DATA_State)
+			{
+				EEPROM_Selected_Position--;
+				if (EEPROM_Selected_Position == 255) EEPROM_Selected_Position = 3;
+			}
+		}
 	}
 	
 }
@@ -402,12 +480,11 @@ ISR(TIMER0_COMPA_vect)
 }
 
 
-/*
+
 // TIM2 OVF interrupt routine. the encoder´s switch pushing time is updated and checked. If it is pushed more than
 // 2 secs., the EEPROM save mode is enabled.
 ISR(TIMER2_OVF_vect)
 {
-	cli();
 	
 	ENCODER_SW_Push_Time++;
 	
@@ -415,17 +492,16 @@ ISR(TIMER2_OVF_vect)
 	// If 2secs. are reached WHILE PRESSING (!(PINC & (1 << PINC3))), the count mode is updated
 	if ((ENCODER_SW_Push_Time >= 122) && !(PINC & (1 << PINC3)))
 	{
-		ENCODER_SW_Push_Time = 255;			// So that when liberating SW, no logic issues are presented
+		ENCODER_SW_Push_Time = 255;							// So that when liberating SW, no logic issues are presented
 		tim_8b_ovf_interrupt_disable(TIM_8b_NUM_2);
-		if (Count_Mode == MANUAL) Count_Mode = AUTO;
-		else Count_Mode = MANUAL;
+		if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == DISABLED)) Operation_Mode_Selection = ENABLED;
+		else if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = ENABLED; EEPROM_Selection_Mode == DISABLED;}
+		else if (Operation_Mode_Selection == ENABLED) Operation_Mode_Selection == DISABLED;
 	}
 	
 
-	sei();
-
 }
-*/
+
 
 // TIM1 OC1A interrupt routine. The decoder is disabled.
 ISR(TIMER1_COMPA_vect)
