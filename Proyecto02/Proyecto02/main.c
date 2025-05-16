@@ -24,7 +24,7 @@
 =                  SYSTEM OVERVIEW                    =
 =======================================================
 
-This system controls 8 servo motors using a 3-to-8 decoder.
+This system controls 8 servo motors using a 3-to-8 decoder. Only 4 control pins are needed!
 The current motor pulse width (OCR1A) is updated periodically using TIM0 and TIM1 interrupts.
 Control values for each motor are stored and managed in structured buffers, depending on the selected operation mode.
 
@@ -311,6 +311,7 @@ void	SETUP()
 	// UART 8b, no parity, 1 stop bit, 9600 baud rate
 	uart_init(USART_SPEED_DOUBLE, USART_CHARACTER_SIZE_8b, USART_PARITY_MODE_DISABLED, USART_STOP_BIT_1b, USART_MULTIPROCESSOR_COMMUNICATION_MODE_DISABLED, 12);
 	usart_rx_interrupt_enable();
+	//usart_data_register_empty_interrupt_enable();
 	
 	// Cargando valores iniciales para cada posición de EEPROM (Prueba)
 	uint8_t	POS1[8] = {50, 0, 0, 0, 0, 0, 0, 0};
@@ -347,32 +348,33 @@ void	UART_ParseAdafruitFeedData()
 		
 		// If the DATA follows the structure, it is needed to know if the ID is correct
 		// Then, the ID is extracted from the EncodedData Receive Buffer
-		// As in ASCII all characters are correctly listed (A=65, B=66, C=67, ...), the following code shall look if the ID is valid
-		// If 7 motors are to be controlled, the only possible ID's are 'A', 'B', 'C', 'D', 'E', 'F', 'G' and 'H'
-		// If any other character for the ID is used (i.e. 'H' or 'c'), subtracting 'A' from the ID will not give a result from 0 to 7
-		// If so, the DATA is trashed
-		char id = EncodedData[1];
-		uint8_t index = id - 'A';								// If the ID is correct, index should keep values from 0 to 7
-		if (index >= 8) {usart_rx_buffer_flush(); return;}
-		
-		// If the DATA follows and structure AND the ID is correct, VAL is turned into a string
-		uint8_t DATA_Value = (uint8_t)atoi(&EncodedData[3]);	// 'atoi' turns VAL into a string up until ';'
-		
-		// Data is copied to the correct Adafruit[] index
-		switch (index)
+		// As in ASCII all characters are correctly listed (A=65, B=66, C=67, ...), the following code shall look if the ID is for motor controlling, 
+		// for EEPROM saving, or for operation mode changing. If the ID is not valid, the data is thrashed.
+		// If 8 motors are to be controlled, the possible ID's for motor controlling are 'A', 'B', 'C', 'D', 'E', 'F', 'G' and 'H'
+		// If the data incoming is for EEPROM saving, the ID should be 'S'
+		// If the data incoming is for operation mode changing, the ID should be 'M'
+		char ID = EncodedData[1];
+		if ((ID >= 'A') && (ID <= 'H'))
 		{
-			case 0: {Motors.Adafruit[0] = DATA_Value; break;}
-			case 1: {Motors.Adafruit[1] = DATA_Value; break;}
-			case 2: {Motors.Adafruit[2] = DATA_Value; break;}
-			case 3: {Motors.Adafruit[3] = DATA_Value; break;}
-			case 4: {Motors.Adafruit[4] = DATA_Value; break;}
-			case 5: {Motors.Adafruit[5] = DATA_Value; break;}
-			case 6: {Motors.Adafruit[6] = DATA_Value; break;}
-			case 7: {Motors.Adafruit[7] = DATA_Value; break;}
-			
-			default: break;
-		}
+			uint8_t DATA_Value = (uint8_t)atoi(&EncodedData[3]);		// 'atoi' turns VAL into a string up until ';'
+			uint8_t index = ID - 'A';									// This helps to indicate to which motor VAL should be updated 
+			Motors.Adafruit[index] = DATA_Value;						// Data is copied to the correct Adafruit[] index
 		
+		} else if (ID == 'M')
+		{
+			switch (EncodedData[3])
+			{
+				case '0': Next_Operation_Mode = MANUAL;		Operation_Mode_Selection = DISABLED; break;
+				case '1': Next_Operation_Mode = ADAFRUIT;	Operation_Mode_Selection = DISABLED; break;
+				default: break;
+			}
+		} else if (ID == 'S')
+		{
+			uint8_t DATA_Value = (uint8_t)atoi(&EncodedData[3]);
+			EEPROM_StoreMotorsArrange(DATA_Value - 1, Motors.Usable);	// The actual motors arrange is stored in the selected position
+		} else usart_rx_buffer_flush(); return;							// If the index is not correct, the data is thrashed
+
+			
 		usart_rx_buffer_flush();
 	}
 }
@@ -396,6 +398,7 @@ void	EEPROM_ReadMotorsArrange(uint8_t Position_Number, uint8_t* Destination_Loca
 
 /*********************************************************************************************************************************************************************************************************************/
 // Interrupt routines
+
 
 // UART receive interrupt routine. "receive_bytes" function is used.
 ISR(USART_RX_vect)

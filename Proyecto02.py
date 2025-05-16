@@ -3,7 +3,7 @@ import sys
 import time
 import serial
 
-# --- FUNCIONES AUXILIARES ---
+# --- Auxiliary functions ---
 def escalar_a_255(valor_str):
     """Convierte el valor del slider (0-180) a un byte entre 0-255"""
     valor = int(valor_str)
@@ -23,10 +23,10 @@ run_count = 0
 # Remember, your key is a secret,
 # so make sure not to publish it when you publish this code!
 ADAFRUIT_IO_USERNAME = "esc22235"
-ADAFRUIT_IO_KEY = "aio_TKfW36GL3IoMBXNcgO72Bs22Tb13"
+ADAFRUIT_IO_KEY = "aio_fyOM50wxEzqU6pjf2zPQgRIiqnlC"
 
 # Set to the ID of the feed to subscribe to for updates.
-FEEDS_RECEIVE = ['Motor1_TX', 'Motor2_TX', 'Motor3_TX', 'Motor4_TX', 'Motor5_TX', 'Motor6_TX', 'Motor7_TX', 'Motor8_TX']
+FEEDS_RECEIVE = ['Motor1_TX', 'Motor2_TX', 'Motor3_TX', 'Motor4_TX', 'Motor5_TX', 'Motor6_TX', 'Motor7_TX', 'Motor8_TX', 'EEPROM_TX', 'Mode_TX']
 FEED_ID_Send = 'Counter_RX'
 
 # Define "callback" functions which will be called when certain events 
@@ -74,6 +74,10 @@ def message(client, feed_id, payload):
         arduino.write(bytes('#G:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'Motor8_TX':
         arduino.write(bytes('#H:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+    elif    feed_id == 'EEPROM_TX':
+        arduino.write(bytes('#S:'+(str(payload))+';\r\n', 'utf-8'))
+    elif    feed_id == 'Mode_TX':
+        arduino.write(bytes('#M:'+(str(payload))+';\r\n', 'utf-8'))
     time.sleep(0.5)
     
 
