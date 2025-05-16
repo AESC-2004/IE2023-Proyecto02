@@ -19,6 +19,47 @@
 /*********************************************************************************************************************************************************************************************************************/
 
 /*********************************************************************************************************************************************************************************************************************/
+/*
+=======================================================
+=                  SYSTEM OVERVIEW                    =
+=======================================================
+
+This system controls 8 servo motors using a 3-to-8 decoder.
+The current motor pulse width (OCR1A) is updated periodically using TIM0 and TIM1 interrupts.
+Control values for each motor are stored and managed in structured buffers, depending on the selected operation mode.
+
+Available operation modes:
+ - MANUAL: Values are taken from ADC or fixed arrays (Motors.Manual[]).
+ - ADAFRUIT: Values are received via UART (Motors.Adafruit[]).
+ - EEPROM: Values are loaded from persistent EEPROM memory (Motors.Usable[] = position N).
+
+EEPROM supports:
+ - 4 positions (presets), each with 8 motor values (1 byte per motor).
+ - Storage and retrieval are done using eeprom_update_block() and eeprom_read_block().
+ - EEPROM_Store_Flag is used to trigger a write from within the main loop, avoiding writes inside ISRs.
+
+User input interface:
+ - Rotary encoder KY-040 is used for selection, scrolling, and confirming actions.
+ - Encoder SW (push) triggers mode selection, EEPROM selection, or EEPROM storing.
+ - Long press (2s) activates EEPROM store mode; short press handles mode switching.
+
+Visual interface:
+ - A single 7-segment display shows active mode or EEPROM position.
+ - Blinking is managed with Blink_State and TIM0 for visual feedback during selection phases.
+
+Main functional flags:
+ - Operation_Mode_Selection: Indicates if the user is actively choosing a mode.
+ - EEPROM_Selection_Mode: Indicates if the user is selecting which EEPROM preset to load.
+ - EEPROM_Store_Arrange_Mode: Indicates if the user is selecting where to store a preset.
+ - EEPROM_Store_Flag: Triggers a one-time EEPROM write in the main loop.
+
+All interaction logic is non-blocking and state-driven, allowing continuous PWM generation and UART reception.
+
+Further information is given in them explanatory documents!
+*/
+/*********************************************************************************************************************************************************************************************************************/
+
+/*********************************************************************************************************************************************************************************************************************/
 // Variables, constants and data structures
 
 // Encoder variables
@@ -28,7 +69,7 @@ uint8_t				Operation_Mode_Selection = 0;			// Used for letting the user switch t
 volatile uint8_t	ENCODER_SW_Last			 = 1;			// Used for storing the encoder's switch last read value
 															// Because of using pull-up, it's initial value shall be 1
 														
-uint8_t				ENCODER_SW_Timer_Enable	 = DISABLED;
+uint8_t				ENCODER_SW_Timer_Enable	 = DISABLED;	// A flag for knowing if a pushing-time timer is needed
 uint16_t			ENCODER_SW_Push_Time	 = 0;			// Used for keeping track of how much time the encoder's switch have been pushed
 
 
@@ -72,25 +113,25 @@ uint8_t TIM0_Count		= 0;								// Used for knowing which Selector's signal to s
 char	EncodedData[EncodedDataBufferSize];					// Buffer used for keeping the incoming Adafruit data
 
 
-// PWM mapping list
+// PWM mapping list											// List kept in RAM for accessing the correct OCR1A value to set depending on the ADC Lectures
 #define PWM_TABLE_SIZE 256
-uint8_t ADCH_to_PWM[PWM_TABLE_SIZE] = {						// List kept in RAM for accessing the correct OCR1A value to set depending on the ADC Lectures
-	8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,
-	9,10,10,10,10,10,10,10,10,10,11,11,11,11,11,11,
-	11,11,12,12,12,12,12,12,12,12,12,13,13,13,13,13,
-	13,13,13,14,14,14,14,14,14,14,14,14,15,15,15,15,
-	15,15,15,15,16,16,16,16,16,16,16,16,16,17,17,17,
-	17,17,17,17,17,18,18,18,18,18,18,18,18,18,19,19,
-	19,19,19,19,19,19,20,20,20,20,20,20,20,20,20,21,
-	21,21,21,21,21,21,21,22,22,22,22,22,22,22,22,22,
-	23,23,23,23,23,23,23,23,24,24,24,24,24,24,24,24,
-	24,25,25,25,25,25,25,25,25,26,26,26,26,26,26,26,
-	26,26,27,27,27,27,27,27,27,27,28,28,28,28,28,28,
-	28,28,28,29,29,29,29,29,29,29,29,30,30,30,30,30,
-	30,30,30,30,31,31,31,31,31,31,31,31,32,32,32,32,
-	32,32,32,32,32,33,33,33,33,33,33,33,33,34,34,34,
-	34,34,34,34,34,34,35,35,35,35,35,35,35,35,36,36,
-	36,36,36,36,36,36,36,37,37,37,37,37,37,37,37,38
+const uint8_t ADCH_to_PWM[256] = {
+    10,10,10,10,10,10,10,10,10,10,11,11,11,11,11,11,
+    11,11,11,11,12,12,12,12,12,12,12,12,12,12,13,13,
+    13,13,13,13,13,13,13,13,14,14,14,14,14,14,14,14,
+    14,14,15,15,15,15,15,15,15,15,15,15,16,16,16,16,
+    16,16,16,16,16,16,17,17,17,17,17,17,17,17,17,17,
+    18,18,18,18,18,18,18,18,18,18,19,19,19,19,19,19,
+    19,19,19,19,20,20,20,20,20,20,20,20,20,20,21,21,
+    21,21,21,21,21,21,21,21,22,22,22,22,22,22,22,22,
+    22,22,23,23,23,23,23,23,23,23,23,23,24,24,24,24,
+    24,24,24,24,24,24,25,25,25,25,25,25,25,25,25,25,
+    26,26,26,26,26,26,26,26,26,26,27,27,27,27,27,27,
+    27,27,27,27,28,28,28,28,28,28,28,28,28,28,29,29,
+    29,29,29,29,29,29,29,29,30,30,30,30,30,30,30,30,
+    30,30,31,31,31,31,31,31,31,31,31,31,32,32,32,32,
+    32,32,32,32,32,32,33,33,33,33,33,33,33,33,33,33,
+    34,34,34,34,34,34,34,34,34,34,35,35,35,35,35,35
 };
 
 
@@ -99,15 +140,18 @@ uint8_t ADCH_to_PWM[PWM_TABLE_SIZE] = {						// List kept in RAM for accessing t
 #define OFF					  0							
 uint8_t Blink_Count			= 0;
 uint8_t Blink_State			= ON;
-uint8_t Any_Selection_Mode	= 1;
+uint8_t Any_Selection_Mode	= 1;							// Used for establishing blinking mode!
 
 
 // EEPROM
-uint8_t EEPROM_Selection_Mode		= DISABLED;
-uint8_t EEPROM_Selected_Position	= 0;
-#define BytesPerArrange				  8
-#define StoredArrangements			  4
-#define TotalEEPROM			  (BytesPerArrange*StoredArrangements)
+uint8_t	EEPROM_Store_Arrange_Mode		= DISABLED;			// A flag for knowing if storing an arrange in EEPROM is wanted
+uint8_t	EEPROM_Store_Selected_Position	= 0;				// Used for letting the user decide in which EEPROM position to store the arrange
+uint8_t EEPROM_Store_Flag				= DISABLED;			// Used for avoiding to store positions at every loop and waste the EEPROM usage!
+uint8_t EEPROM_Selection_Mode			= DISABLED;			// A flag for knowing if an EEPROM stored arranged is wanted to be displayed
+uint8_t EEPROM_Selected_Position		= 0;				// Used for letting the user decide which EEPROM stored position to display
+#define BytesPerArrange					  8					// Number of bytes needed per arrange ("8" as that's the number of motors controlled)
+#define StoredArrangements				  4					// Number of positions to store in EEPROM
+#define TotalEEPROM						(BytesPerArrange*StoredArrangements)
 
 /*********************************************************************************************************************************************************************************************************************/
 // Function prototypes
@@ -133,8 +177,15 @@ int main(void)
 		// Checking if a new operation mode is required. If so, the operation mode is updated
 		if ((Operation_Mode_Selection == DISABLED) && (Next_Operation_Mode != Operation_Mode)) Operation_Mode = Next_Operation_Mode;
 		
+		// Checking if a storage in EEPROM is required
+		if (EEPROM_Store_Flag == ENABLED)
+		{
+			EEPROM_StoreMotorsArrange(EEPROM_Store_Selected_Position, Motors.Usable);
+			EEPROM_Store_Flag = DISABLED;
+		}
+		
 		// Updating if any selection mode is enabled
-		if ((Operation_Mode_Selection == ENABLED) || (EEPROM_Selection_Mode == ENABLED)) Any_Selection_Mode = ENABLED;
+		if ((Operation_Mode_Selection == ENABLED) || (EEPROM_Selection_Mode == ENABLED) || (EEPROM_Store_Arrange_Mode == ENABLED)) Any_Selection_Mode = ENABLED;
 		else Any_Selection_Mode = DISABLED;
 		
 		// Depending on the mode, values are updated to MotorDecoding.Usable[]
@@ -165,36 +216,47 @@ int main(void)
 		// If not, the LED's mapping is disposed depending the mode
 		if (Any_Selection_Mode == ENABLED)
 		{
-			switch (EEPROM_Selection_Mode)
+			if ((Operation_Mode_Selection == ENABLED) && (EEPROM_Selection_Mode == DISABLED) && (EEPROM_Store_Arrange_Mode == DISABLED))
 			{
-				case DISABLED:
-					if (Blink_State == ON)
-					{
-						PORTD	&= ~(0xFC);
-						PORTD	|= DISP7SEG_MODES_PD[Next_Operation_Mode];
-						PORTC	&= ~(0x01);
-						PORTC	|= DISP7SEG_MODES_PC[Next_Operation_Mode];
-					} else
-					{
-						PORTD	&= ~(0xFC);
-						PORTC	&= ~(0x01);
-					}
-					break;
-				case ENABLED:
-					if (Blink_State == ON)
-					{
-						PORTD	&= ~(0xFC);
-						PORTD	|= DISP7SEG_NUMS_PD[EEPROM_Selected_Position+1];
-						PORTC	&= ~(0x01);
-						PORTC	|= DISP7SEG_NUMS_PC[EEPROM_Selected_Position+1];
-					} else
-					{
-						PORTD	&= ~(0xFC);
-						PORTC	&= ~(0x01);
-					}
-					break;
-				default: break;
-			}			
+				if (Blink_State == ON)
+				{
+					PORTD	&= ~(0xFC);
+					PORTD	|= DISP7SEG_MODES_PD[Next_Operation_Mode];
+					PORTC	&= ~(0x01);
+					PORTC	|= DISP7SEG_MODES_PC[Next_Operation_Mode];
+				} else
+				{
+					PORTD	&= ~(0xFC);
+					PORTC	&= ~(0x01);
+				}
+			} else if ((EEPROM_Selection_Mode == ENABLED) && (EEPROM_Store_Arrange_Mode == DISABLED))
+			{
+				if (Blink_State == ON)
+				{
+					PORTD	&= ~(0xFC);
+					PORTD	|= DISP7SEG_NUMS_PD[EEPROM_Selected_Position+1];
+					PORTC	&= ~(0x01);
+					PORTC	|= DISP7SEG_NUMS_PC[EEPROM_Selected_Position+1];
+				} else
+				{
+					PORTD	&= ~(0xFC);
+					PORTC	&= ~(0x01);
+				}
+			} else if ((EEPROM_Selection_Mode == DISABLED) && (EEPROM_Store_Arrange_Mode == ENABLED))
+			{
+				if (Blink_State == ON)
+				{
+					PORTD	&= ~(0xFC);
+					PORTD	|= DISP7SEG_NUMS_PD[EEPROM_Store_Selected_Position+1];
+					PORTC	&= ~(0x01);
+					PORTC	|= DISP7SEG_NUMS_PC[EEPROM_Store_Selected_Position+1];
+				} else
+				{
+					PORTD	&= ~(0xFC);
+					PORTC	&= ~(0x01);
+				}
+			}
+			
 		} else 
 		{
 			PORTD	&= ~(0xFC);								
@@ -358,15 +420,24 @@ ISR(PCINT1_vect)
 		ENCODER_SW_Timer_Enable = ENABLED;
 		ENCODER_SW_Push_Time	= 0;
 	}
-	// If SW was being pushed, but not anymore, and the time pushed is less than 2secs, the selection mode is updated
+	// If SW was being pushed but not anymore, and the time pushed is less than 2secs, the selection mode is updated depending then actual state!
 	if ((SW_State == 1) && (ENCODER_SW_Last == 0) && (ENCODER_SW_Push_Time < 800))			// Rising edge detected: SW liberated
 	{
 		ENCODER_SW_Timer_Enable = DISABLED;
-		if (Operation_Mode_Selection == DISABLED) Operation_Mode_Selection = ENABLED;
-		else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode != EEPROM) && (EEPROM_Selection_Mode == DISABLED)) Operation_Mode_Selection = DISABLED;
-		else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode == EEPROM) && (EEPROM_Selection_Mode == DISABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = ENABLED;}
-		else if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
-		else if ((Operation_Mode_Selection == ENABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
+		switch (EEPROM_Store_Arrange_Mode)
+		{
+			case ENABLED:
+				EEPROM_Store_Arrange_Mode = DISABLED; EEPROM_Store_Flag = ENABLED; break;
+			case DISABLED:
+				if (Operation_Mode_Selection == DISABLED) Operation_Mode_Selection = ENABLED;
+				else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode != EEPROM) && (EEPROM_Selection_Mode == DISABLED)) Operation_Mode_Selection = DISABLED;
+				else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode == EEPROM) && (EEPROM_Selection_Mode == DISABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = ENABLED;}
+				else if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
+				else if ((Operation_Mode_Selection == ENABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
+				break;
+			default: break;
+		}
+		
 	}
 	ENCODER_SW_Last = SW_State;																// ENCODER_SW_Last updated
 	
@@ -379,7 +450,8 @@ ISR(PCINT1_vect)
 	// Depending if any selection mode is enabled or not, an action is made
 	// If operation mode selection is enabled, the NEXT* operation mode is changed
 	// If EEPROM selection mode is enabled, the EEPROM selected position is updated	
-		if ((Operation_Mode_Selection == ENABLED) && (EEPROM_Selection_Mode == DISABLED))
+	// If EEPROM store arrange mode is enabled, the EEPROM store selected position is updated
+		if ((Operation_Mode_Selection == ENABLED) && (EEPROM_Selection_Mode == DISABLED) && (EEPROM_Store_Arrange_Mode == DISABLED))
 		{
 			if (DATA_State)
 			{
@@ -390,7 +462,7 @@ ISR(PCINT1_vect)
 				Next_Operation_Mode--;
 				if (Next_Operation_Mode == 255) Next_Operation_Mode = EEPROM;
 			}
-		} else if (EEPROM_Selection_Mode == ENABLED)
+		} else if (EEPROM_Selection_Mode == ENABLED && (EEPROM_Store_Arrange_Mode == DISABLED))
 		{
 			if (DATA_State)
 			{
@@ -401,6 +473,17 @@ ISR(PCINT1_vect)
 				EEPROM_Selected_Position--;
 				if (EEPROM_Selected_Position == 255) EEPROM_Selected_Position = 3;
 			}
+		} else if (EEPROM_Store_Arrange_Mode == ENABLED)
+		{
+			if (DATA_State)
+			{
+				EEPROM_Store_Selected_Position++;
+				if (EEPROM_Store_Selected_Position == 4) EEPROM_Store_Selected_Position = 0;
+			} else if (!DATA_State)
+			{
+				EEPROM_Store_Selected_Position--;
+				if (EEPROM_Store_Selected_Position == 255) EEPROM_Store_Selected_Position = 3;
+			}
 		}
 	}
 	
@@ -410,6 +493,7 @@ ISR(PCINT1_vect)
 
 // TIM0 OC0A interrupt routine. "TIM0_Count" is incremented, and depending it's value, the decoder's selector bits are correctly
 // established, and the correct OCR1A value is uploaded. If any blinking mode is enabled, them blinking variables do its job too!
+// And, a timer for checking the push duration of the encoder's SW is updated if required.
 ISR(TIMER0_COMPA_vect)
 {
 	cli();
@@ -417,7 +501,16 @@ ISR(TIMER0_COMPA_vect)
 	// If the Encoder SW is being pushed, Encoder_SW_Push_Time is incremented
 	// If SW is pushed 2secs, the mode changes
 	if (ENCODER_SW_Timer_Enable == ENABLED) ENCODER_SW_Push_Time++;
-	if (ENCODER_SW_Push_Time == 800) {ENCODER_SW_Timer_Enable = DISABLED; Operation_Mode_Selection = ENABLED;}
+	if (ENCODER_SW_Push_Time == 800) 
+	{
+		ENCODER_SW_Timer_Enable = DISABLED;
+		ENCODER_SW_Push_Time	= 0xFFFF;								// So that no error happens at the rising edge of SW
+		// If any of the operation selection mode OR the EEPROM selection mode are enabled (NOT any selection mode); nothing is done
+		// If the operation selection mode AND the EEPROM selection mode are both disabled, AND the operation mode is not EEPROM, AND the EEPROM_Store_Arrange_Mode is disabled, the EEPROM_Store_Arrange_Mode is enabled
+		// If the operation selection mode AND the EEPROM selection mode are both disabled, AND the operation mode is not EEPROM, AND the EEPROM_Store_Arrange_Mode is enabled, the EEPROM_Store_Arrange_Mode is disabled
+		if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == DISABLED) && (Operation_Mode != EEPROM) && (EEPROM_Store_Arrange_Mode == DISABLED)) EEPROM_Store_Arrange_Mode = ENABLED;
+		else if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == DISABLED) && (Operation_Mode != EEPROM) && (EEPROM_Store_Arrange_Mode == ENABLED)) EEPROM_Store_Arrange_Mode = DISABLED;
+	}
 	
 	Blink_Count++;
 	if (Blink_Count == 122) 
