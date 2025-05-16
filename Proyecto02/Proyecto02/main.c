@@ -22,16 +22,17 @@
 // Variables, constants and data structures
 
 // Encoder variables
-#define				ENABLED					   1		// A "define" that'll come handy for the "Operation_Mode_Selection" variable
-#define				DISABLED				   0		// A "define" that'll come handy for the "Operation_Mode_Selection" variable
-uint8_t				Operation_Mode_Selection = 0;		// Used for letting the user switch the operation mode
-volatile uint8_t	ENCODER_SW_Last			 = 1;		// Used for storing the encoder's switch last read value
-														// Because of using pull-up, it's initial value shall be 1
+#define				ENABLED					   1			// A "define" that'll come handy for the "Operation_Mode_Selection" variable
+#define				DISABLED				   0			// A "define" that'll come handy for the "Operation_Mode_Selection" variable
+uint8_t				Operation_Mode_Selection = 0;			// Used for letting the user switch the operation mode
+volatile uint8_t	ENCODER_SW_Last			 = 1;			// Used for storing the encoder's switch last read value
+															// Because of using pull-up, it's initial value shall be 1
 														
-uint8_t				ENCODER_SW_Push_Time	 = 0;		// Used for keeping track of how much time the encoder's switch have been pushed
+uint8_t				ENCODER_SW_Timer_Enable	 = DISABLED;
+uint16_t			ENCODER_SW_Push_Time	 = 0;			// Used for keeping track of how much time the encoder's switch have been pushed
 
 
-// Display list's										// Used for mapping them LED's correct sequences
+// Display list's											// Used for mapping them LED's correct sequences
 uint8_t DISP7SEG_NUMS_PD[10] = {0xFC, 0x18, 0x6C,		
 								0x3C, 0x98, 0xB4, 
 								0xF0, 0x1C, 0xFC, 
@@ -46,34 +47,34 @@ uint8_t DISP7SEG_MODES_PC[3] = {1, 1, 1};
 
 
 // ADC variables
-uint8_t ADC_Count				= 0;					// Used for selecting which channel the ADC should read
-uint8_t ADC_Lec					= 0;					// Used for keeping the last ADC Lecture
+uint8_t ADC_Count				= 0;						// Used for selecting which channel the ADC should read
+uint8_t ADC_Lec					= 0;						// Used for keeping the last ADC Lecture
 
 
 // Decoder variables, buffers and data structures
-#define MANUAL					  0						// A "define" that'll come handy for establishing the operation mode
-#define ADAFRUIT				  1						// A "define" that'll come handy for establishing the operation mode
-#define EEPROM					  2						// A "define" that'll come handy for establishing the operation mode
-uint8_t Operation_Mode			= MANUAL;				// Used for establishing the motor's positions mode
-uint8_t Next_Operation_Mode		= MANUAL;				// Used for defining the next motor's operation mode if the encoder is used
-														// and if selection mode is enabled
+#define MANUAL					  0							// A "define" that'll come handy for establishing the operation mode
+#define ADAFRUIT				  1							// A "define" that'll come handy for establishing the operation mode
+#define EEPROM					  2							// A "define" that'll come handy for establishing the operation mode
+uint8_t Operation_Mode			= MANUAL;					// Used for establishing the motor's positions mode
+uint8_t Next_Operation_Mode		= MANUAL;					// Used for defining the next motor's operation mode if the encoder is used
+															// and if selection mode is enabled
 typedef struct {
 	uint8_t	Adafruit[8];
 	uint8_t Manual[4];
 	uint8_t Usable[8];
 } MotorDecoding;
-MotorDecoding Motors;									// A struct for organizing them motor'9s positions depending on the mode
-uint8_t TIM0_Count		= 0;							// Used for knowing which Selector's signal to send to the decoder
+MotorDecoding Motors;										// A struct for organizing them motor'9s positions depending on the mode
+uint8_t TIM0_Count		= 0;								// Used for knowing which Selector's signal to send to the decoder
 	
 	
 // UART buffer
 #define EncodedDataBufferSize 16
-char	EncodedData[EncodedDataBufferSize];				// Buffer used for keeping the incoming Adafruit data
+char	EncodedData[EncodedDataBufferSize];					// Buffer used for keeping the incoming Adafruit data
 
 
 // PWM mapping list
 #define PWM_TABLE_SIZE 256
-uint8_t ADCH_to_PWM[PWM_TABLE_SIZE] = {					// List kept in RAM for accessing the correct OCR1A value to set depending on the ADC Lectures
+uint8_t ADCH_to_PWM[PWM_TABLE_SIZE] = {						// List kept in RAM for accessing the correct OCR1A value to set depending on the ADC Lectures
 	8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,
 	9,10,10,10,10,10,10,10,10,10,11,11,11,11,11,11,
 	11,11,12,12,12,12,12,12,12,12,12,13,13,13,13,13,
@@ -93,7 +94,7 @@ uint8_t ADCH_to_PWM[PWM_TABLE_SIZE] = {					// List kept in RAM for accessing th
 };
 
 
-// Blinking variables									// Used for timing them display's blinks
+// Blinking variables										// Used for timing them display's blinks
 #define ON					  1	
 #define OFF					  0							
 uint8_t Blink_Count			= 0;
@@ -244,9 +245,6 @@ void	SETUP()
 	tim1_init(TIM1_CHANNEL_A, TIM1_PRESCALE_64, TIM1_MODE_CTC_OCR1A, 0xFFFF, TIM1_COM_OC1x_DISCONNECTED, 0, TIM1_OC1x_DISABLE);
 	tim1_oc_interrupt_enable(TIM1_CHANNEL_A);
 	
-	// Initiating TIM2 for counting up to 2 secs. when needed
-	tim2_init(TIM_8b_CHANNEL_A, TIM2_PRESCALE_1024, TIM_8b_MODE_NORMAL, 0, TIM_8b_COM_OCnx_DISCONNECTED, 0, TIM_8b_OCnx_DISABLE);
-	
 	// Initiating UART communication
 	// UART 8b, no parity, 1 stop bit, 9600 baud rate
 	uart_init(USART_SPEED_DOUBLE, USART_CHARACTER_SIZE_8b, USART_PARITY_MODE_DISABLED, USART_STOP_BIT_1b, USART_MULTIPROCESSOR_COMMUNICATION_MODE_DISABLED, 12);
@@ -354,33 +352,29 @@ ISR(PCINT1_vect)
 	// SW logic
 	// PINC3 value is saved
 	uint8_t SW_State = (PINC & (1 << PINC3)) ? 1 : 0;
-	// If SW is being pushed, and if it was not being pressed before, TIM2 starts
-	if ((SW_State == 0) && ENCODER_SW_Last == 1)			// Falling edge detected: SW pushed
+	// If SW is being pushed, and if it was not being pressed before, ENCODER_SW_Push_Time starts
+	if ((SW_State == 0) && ENCODER_SW_Last == 1)											// Falling edge detected: SW pushed
 	{
-		tim_8b_tcnt_value(TIM_8b_NUM_2, 0);
-		tim_8b_ovf_interrupt_enable(TIM_8b_NUM_2);
+		ENCODER_SW_Timer_Enable = ENABLED;
+		ENCODER_SW_Push_Time	= 0;
 	}
-	// If SW was being pushed, but not anymore, the selection mode is updated
-	if ((SW_State == 1) && (ENCODER_SW_Last == 0))			// Rising edge detected: SW liberated
+	// If SW was being pushed, but not anymore, and the time pushed is less than 2secs, the selection mode is updated
+	if ((SW_State == 1) && (ENCODER_SW_Last == 0) && (ENCODER_SW_Push_Time < 800))			// Rising edge detected: SW liberated
 	{
-		tim_8b_ovf_interrupt_disable(TIM_8b_NUM_2);
-		if (ENCODER_SW_Push_Time < 122)
-		{
-			ENCODER_SW_Push_Time = 0;
-			if (Operation_Mode_Selection == DISABLED) Operation_Mode_Selection = ENABLED;
-			else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode != EEPROM) && (EEPROM_Selection_Mode == DISABLED)) Operation_Mode_Selection = DISABLED;
-			else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode == EEPROM) && (EEPROM_Selection_Mode == DISABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = ENABLED;}
-			else if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
-			else if ((Operation_Mode_Selection == ENABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
-		}
+		ENCODER_SW_Timer_Enable = DISABLED;
+		if (Operation_Mode_Selection == DISABLED) Operation_Mode_Selection = ENABLED;
+		else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode != EEPROM) && (EEPROM_Selection_Mode == DISABLED)) Operation_Mode_Selection = DISABLED;
+		else if ((Operation_Mode_Selection == ENABLED) && (Next_Operation_Mode == EEPROM) && (EEPROM_Selection_Mode == DISABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = ENABLED;}
+		else if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
+		else if ((Operation_Mode_Selection == ENABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = DISABLED; EEPROM_Selection_Mode = DISABLED;}
 	}
-	ENCODER_SW_Last = SW_State;								// ENCODER_SW_Last updated
+	ENCODER_SW_Last = SW_State;																// ENCODER_SW_Last updated
 	
 	// DATA and CLK logic
 	// PINC2,1 values are saved
 	uint8_t DATA_State = (PINC & (1 << PINC2));
 	uint8_t CLK_State = (PINC & (1 << PINC1));
-	if (!CLK_State)											// Falling edge detected: Encoder spin
+	if (!CLK_State)																			// Falling edge detected: Encoder spin
 	{
 	// Depending if any selection mode is enabled or not, an action is made
 	// If operation mode selection is enabled, the NEXT* operation mode is changed
@@ -420,6 +414,11 @@ ISR(TIMER0_COMPA_vect)
 {
 	cli();
 
+	// If the Encoder SW is being pushed, Encoder_SW_Push_Time is incremented
+	// If SW is pushed 2secs, the mode changes
+	if (ENCODER_SW_Timer_Enable == ENABLED) ENCODER_SW_Push_Time++;
+	if (ENCODER_SW_Push_Time == 800) {ENCODER_SW_Timer_Enable = DISABLED; Operation_Mode_Selection = ENABLED;}
+	
 	Blink_Count++;
 	if (Blink_Count == 122) 
 	{
@@ -477,29 +476,6 @@ ISR(TIMER0_COMPA_vect)
 	}
 	
 	sei();
-}
-
-
-
-// TIM2 OVF interrupt routine. the encoder´s switch pushing time is updated and checked. If it is pushed more than
-// 2 secs., the EEPROM save mode is enabled.
-ISR(TIMER2_OVF_vect)
-{
-	
-	ENCODER_SW_Push_Time++;
-	
-	
-	// If 2secs. are reached WHILE PRESSING (!(PINC & (1 << PINC3))), the count mode is updated
-	if ((ENCODER_SW_Push_Time >= 122) && !(PINC & (1 << PINC3)))
-	{
-		ENCODER_SW_Push_Time = 255;							// So that when liberating SW, no logic issues are presented
-		tim_8b_ovf_interrupt_disable(TIM_8b_NUM_2);
-		if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == DISABLED)) Operation_Mode_Selection = ENABLED;
-		else if ((Operation_Mode_Selection == DISABLED) && (EEPROM_Selection_Mode == ENABLED)) {Operation_Mode_Selection = ENABLED; EEPROM_Selection_Mode == DISABLED;}
-		else if (Operation_Mode_Selection == ENABLED) Operation_Mode_Selection == DISABLED;
-	}
-	
-
 }
 
 
