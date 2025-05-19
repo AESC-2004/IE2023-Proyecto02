@@ -4,11 +4,11 @@ import time
 import serial
 
 # --- Auxiliary functions ---
-def escalar_a_255(valor_str):
-    """Convierte el valor del slider (0-180) a un byte entre 0-255"""
-    valor = int(valor_str)
-    valor_escalado = (valor * 255 + 90) // 180
-    return min(valor_escalado, 255)
+def data_to_255(valor_str):
+    """Turns the slider value (0-180) to a MCU readable byte (0-255)"""
+    val = int(valor_str)
+    scaled_val = (val * 255 + 90) // 180
+    return min(scaled_val, 255)
 
 
 # This example uses the MQTTClient instead of the REST client
@@ -23,7 +23,7 @@ run_count = 0
 # Remember, your key is a secret,
 # so make sure not to publish it when you publish this code!
 ADAFRUIT_IO_USERNAME = "esc22235"
-ADAFRUIT_IO_KEY = "aio_bWql25bHZFxR95V1xunHkiNOSMVp"
+ADAFRUIT_IO_KEY = "aio_RFNO11C1ODKf0dRCr0TYIZPDYclN"
 
 # Set to the ID of the feed to subscribe to for updates.
 FEEDS_RECEIVE = ['Motor1_TX', 'Motor2_TX', 'Motor3_TX', 'Motor4_TX', 'Motor5_TX', 'Motor6_TX', 'Motor7_TX', 'Motor8_TX', 'EEPROM_TX', 'Mode_TX']
@@ -59,21 +59,21 @@ def message(client, feed_id, payload):
     client.publish(FEED_ID_Send, payload)
     # Verifying which Feed sent data, and which info. should be sent to the MCU
     if      feed_id == 'Motor1_TX':
-        arduino.write(bytes('#A:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+        arduino.write(bytes('#A:'+str(data_to_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'Motor2_TX':
-        arduino.write(bytes('#B:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+        arduino.write(bytes('#B:'+str(data_to_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'Motor3_TX':
-        arduino.write(bytes('#C:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+        arduino.write(bytes('#C:'+str(data_to_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'Motor4_TX':
-        arduino.write(bytes('#D:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+        arduino.write(bytes('#D:'+str(data_to_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'Motor5_TX':
-        arduino.write(bytes('#E:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+        arduino.write(bytes('#E:'+str(data_to_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'Motor6_TX':
-        arduino.write(bytes('#F:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+        arduino.write(bytes('#F:'+str(data_to_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'Motor7_TX':
-        arduino.write(bytes('#G:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+        arduino.write(bytes('#G:'+str(data_to_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'Motor8_TX':
-        arduino.write(bytes('#H:'+str(escalar_a_255(str(payload)))+';\r\n', 'utf-8'))
+        arduino.write(bytes('#H:'+str(data_to_255(str(payload)))+';\r\n', 'utf-8'))
     elif    feed_id == 'EEPROM_TX':
         arduino.write(bytes('#S:'+(str(payload))+';\r\n', 'utf-8'))
     elif    feed_id == 'Mode_TX':

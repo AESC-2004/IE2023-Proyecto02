@@ -24,38 +24,72 @@
 =                  SYSTEM OVERVIEW                    =
 =======================================================
 
-This system controls 8 servo motors using a 3-to-8 decoder. Only 4 control pins are needed!
-The current motor pulse width (OCR1A) is updated periodically using TIM0 and TIM1 interrupts.
-Control values for each motor are stored and managed in structured buffers, depending on the selected operation mode.
+This embedded system controls 8 servo motors using a 3-to-8 binary decoder and only 4 output pins, managed by the ATmega328P.
+It supports three user-selectable operation modes: MANUAL (ADC), ADAFRUIT (UART), and EEPROM (preset recall). The selection,
+configuration, and interaction with the system is entirely state-driven and non-blocking.
 
-Available operation modes:
- - MANUAL: Values are taken from ADC or fixed arrays (Motors.Manual[]).
- - ADAFRUIT: Values are received via UART (Motors.Adafruit[]).
- - EEPROM: Values are loaded from persistent EEPROM memory (Motors.Usable[] = position N).
+==================
+= Servo Control =
+==================
 
-EEPROM supports:
- - 4 positions (presets), each with 8 motor values (1 byte per motor).
- - Storage and retrieval are done using eeprom_update_block() and eeprom_read_block().
- - EEPROM_Store_Flag is used to trigger a write from within the main loop, avoiding writes inside ISRs.
+Each motor receives a position pulse (PWM) controlled via Timer1 (CTC mode using OCR1A) and demultiplexed using Timer0.
+The decoder enables one servo output at a time with a cycle period of 20 ms per motor. To avoid signal jitter and reduce
+power consumption, a PWM sustain mechanism is implemented:
 
-User input interface:
- - Rotary encoder KY-040 is used for selection, scrolling, and confirming actions.
- - Encoder SW (push) triggers mode selection, EEPROM selection, or EEPROM storing.
- - Long press (2s) activates EEPROM store mode; short press handles mode switching.
+- A signal is only sent if the value has changed.
+- Once changed, the PWM remains active for 0.5 seconds (25 decoder ticks).
+- After timeout expiration, the signal is suppressed to prevent unnecessary torque and oscillation.
 
-Visual interface:
- - A single 7-segment display shows active mode or EEPROM position.
- - Blinking is managed with Blink_State and TIM0 for visual feedback during selection phases.
+=========================
+= Operating Modes Logic =
+=========================
 
-Main functional flags:
- - Operation_Mode_Selection: Indicates if the user is actively choosing a mode.
- - EEPROM_Selection_Mode: Indicates if the user is selecting which EEPROM preset to load.
- - EEPROM_Store_Arrange_Mode: Indicates if the user is selecting where to store a preset.
- - EEPROM_Store_Flag: Triggers a one-time EEPROM write in the main loop.
+- MANUAL: Motors 0–3 are controlled via ADC inputs (potentiometers); motors 4–7 retain their last UART value.
+- ADAFRUIT: All 8 motors are controlled via UART commands received from Adafruit IO.
+- EEPROM: A predefined motor configuration is loaded from one of 4 EEPROM slots.
 
-All interaction logic is non-blocking and state-driven, allowing continuous PWM generation and UART reception.
+Each operation mode determines how the `Motors.Usable[]` array is populated. This array holds the target values mapped
+to PWM pulse widths via a 256-byte lookup table (`ADCH_to_PWM[]`), which contains the precomputed OCR1A values.
 
-Further information is given in them explanatory documents!
+=======================
+= EEPROM Capabilities =
+=======================
+
+- 4 storage slots (presets), each consisting of 8 motor positions (1 byte each).
+- Storing and loading is done through safe EEPROM library calls (`eeprom_update_block`, `eeprom_read_block`).
+- Writes are triggered through flags in the main loop, never inside ISRs, preserving EEPROM endurance.
+
+===========================
+= User Interaction System =
+===========================
+
+- Input: Rotary encoder (KY-040) with pushbutton.
+  - Rotation scrolls through operation modes or EEPROM positions.
+  - Short press confirms mode or position selection.
+  - Long press (?2s) activates EEPROM store mode.
+
+- Output: 7-segment display.
+  - Shows current mode or EEPROM position.
+  - Supports blink state feedback using TIM0-based timing.
+
+============================
+= System Responsiveness =
+============================
+
+The system is fully interrupt-driven and non-blocking:
+- UART receive is handled in ISR with buffered parsing (`UART_ParseAdafruitFeedData()`).
+- Encoder and button events are captured via PCINT1.
+- ADC conversion completes asynchronously.
+- Display blink state is updated using a counter tied to Timer0 interrupts.
+
+============================
+= Summary =
+============================
+
+The architecture prioritizes signal precision, input responsiveness, and memory safety, offering a modular, scalable,
+and efficient solution for controlling up to 8 servos with minimal hardware overhead.
+
+See auxiliary documentation for timing diagrams, EEPROM mapping, and UART command structure!
 */
 /*********************************************************************************************************************************************************************************************************************/
 
@@ -134,8 +168,7 @@ const uint8_t ADCH_to_PWM[256] = {
     34,34,34,34,34,34,34,34,34,34,35,35,35,35,35,35
 };
 
-// Deadband-based PWM filtering variables and data structures
-#define  PWM_TOLERANCE				  2						// PWM value difference required to trigger an update
+// PWM filtering variables and data structures
 uint8_t  PWM_Last_Value[8]			= {0};					// Stores the last value actually sent to OCR1A per motor
 #define  PWM_ACTIVE_DURATION_TICKS	  25					// TIM0 ticks required to keep PWM active after a change (~.5s)
 uint16_t PWM_Active_Timer[8]		= {0};					// Timer to hold PWM output active per motor after a change
@@ -320,16 +353,6 @@ void	SETUP()
 	usart_rx_interrupt_enable();
 	//usart_data_register_empty_interrupt_enable();
 	
-	// Cargando valores iniciales para cada posición de EEPROM (Prueba)
-	uint8_t	POS1[8] = {50, 0, 0, 0, 0, 0, 0, 0};
-	uint8_t	POS2[8] = {100, 0, 0, 0, 0, 0, 0, 0};
-	uint8_t	POS3[8] = {10, 0, 0, 0, 0, 0, 0, 0};
-	uint8_t	POS4[8] = {220, 0, 0, 0, 0, 0, 0, 0};
-	EEPROM_StoreMotorsArrange(0, POS1);
-	EEPROM_StoreMotorsArrange(1, POS2);
-	EEPROM_StoreMotorsArrange(2, POS3);
-	EEPROM_StoreMotorsArrange(3, POS4);
-	
 	// Activating interrupts
 	sei();
 	
@@ -378,11 +401,26 @@ void	UART_ParseAdafruitFeedData()
 		} else if (ID == 'S')
 		{
 			uint8_t DATA_Value = (uint8_t)atoi(&EncodedData[3]);
-			EEPROM_StoreMotorsArrange(DATA_Value - 1, Motors.Usable);		// The actual motors arrange is stored in the selected position
-		} else {usart_rx_buffer_flush(); return;}							// If the index is not correct, the data is thrashed
+			// Arranges are only stored if not any selection mode is enabled AND if EEPROM mode is not enabled
+			switch (Any_Selection_Mode)
+			{
+				case ENABLED: break;
+				case DISABLED: 
+					switch (Operation_Mode)
+					{
+						case EEPROM: break;
+						case MANUAL:	EEPROM_StoreMotorsArrange(DATA_Value - 1, Motors.Usable); break;
+						case ADAFRUIT:	EEPROM_StoreMotorsArrange(DATA_Value - 1, Motors.Usable); break;
+						default: break;
+					}
+					break;		
+				default: break;
+			}
+			
+		} else {usart_rx_buffer_flush(); return;}						// If the index is not correct, the data is thrashed
 
 			
-		usart_rx_buffer_flush();
+		usart_rx_buffer_flush();										// The receive buffer is always flushed for receiving more data!
 	}
 }
 
@@ -402,16 +440,15 @@ void	EEPROM_ReadMotorsArrange(uint8_t Position_Number, uint8_t* Destination_Loca
 	eeprom_read_block((void*)Destination_Location, (const void*)Address, BytesPerArrange);
 }
 	
-/* UpdatePWM_IfNeeded function. Jitter is filtered by applying a deadband tolerance. It updates OCR1A only if the difference
-   between the new PWM value and the previous value is greater than the defined tolerance. If the difference is within the 
-   tolerance , the signal is only repeated if still within the active timeout. If the timeout has expired, no pulse is issued 
-   to reduce jitter and unnecessary power draw */
+/* UpdatePWM_IfNeeded function. Jitter is filtered by giving signals only around .5s. It updates OCR1A only if there's a difference
+   between the new PWM value and the previous value. If there's a difference, the signal is only repeated if still within the active 
+   timeout. If the timeout has expired, no pulse is issued to reduce jitter and unnecessary power draw */
 void	UpdatePWM_IfNeeded(uint8_t Motor_Index)
 {
 	uint8_t NewValue = ADCH_to_PWM[Motors.Usable[Motor_Index]];
 	
 	// If a significant change is detected, apply it and reset the active timer
-	if ((NewValue  > (PWM_Last_Value[Motor_Index] + PWM_TOLERANCE)) || ((NewValue + PWM_TOLERANCE) < PWM_Last_Value[Motor_Index]))
+	if ((NewValue  > PWM_Last_Value[Motor_Index]) || (NewValue < PWM_Last_Value[Motor_Index]))
 	{
 		PWM_Last_Value[Motor_Index]		= NewValue;
 		PWM_Active_Timer[Motor_Index]	= PWM_ACTIVE_DURATION_TICKS;
