@@ -23,7 +23,7 @@ run_count = 0
 # Remember, your key is a secret,
 # so make sure not to publish it when you publish this code!
 ADAFRUIT_IO_USERNAME = "esc22235"
-ADAFRUIT_IO_KEY = "aio_fyOM50wxEzqU6pjf2zPQgRIiqnlC"
+ADAFRUIT_IO_KEY = "aio_bWql25bHZFxR95V1xunHkiNOSMVp"
 
 # Set to the ID of the feed to subscribe to for updates.
 FEEDS_RECEIVE = ['Motor1_TX', 'Motor2_TX', 'Motor3_TX', 'Motor4_TX', 'Motor5_TX', 'Motor6_TX', 'Motor7_TX', 'Motor8_TX', 'EEPROM_TX', 'Mode_TX']

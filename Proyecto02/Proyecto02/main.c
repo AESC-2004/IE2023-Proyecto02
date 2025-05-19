@@ -134,6 +134,12 @@ const uint8_t ADCH_to_PWM[256] = {
     34,34,34,34,34,34,34,34,34,34,35,35,35,35,35,35
 };
 
+// Deadband-based PWM filtering variables and data structures
+#define  PWM_TOLERANCE				  2						// PWM value difference required to trigger an update
+uint8_t  PWM_Last_Value[8]			= {0};					// Stores the last value actually sent to OCR1A per motor
+#define  PWM_ACTIVE_DURATION_TICKS	  25					// TIM0 ticks required to keep PWM active after a change (~.5s)
+uint16_t PWM_Active_Timer[8]		= {0};					// Timer to hold PWM output active per motor after a change
+
 
 // Blinking variables										// Used for timing them display's blinks
 #define ON					  1	
@@ -160,6 +166,7 @@ void	SETUP();
 void	UART_ParseAdafruitFeedData();
 void	EEPROM_StoreMotorsArrange(uint8_t Position_Number, const uint8_t* Arrange);
 void	EEPROM_ReadMotorsArrange(uint8_t Position_Number, uint8_t* Destination_Location);
+void	UpdatePWM_IfNeeded(uint8_t Motor_Index);
 
 /*********************************************************************************************************************************************************************************************************************/
 // Main Function
@@ -331,8 +338,8 @@ void	SETUP()
 }
 
 
-// UART_ParseAdafruitFeedData function. The incoming Adafruit data shall be parsed for knowing to which index of the Motors.Adafruit struct should the incoming value
-// should be kept. Afterwards, the USART Receive Buffer is flushed for keeping more data.
+/* UART_ParseAdafruitFeedData function. The incoming Adafruit data shall be parsed for knowing to which index of the Motors.Adafruit struct should the incoming value
+   should be kept. Afterwards, the USART Receive Buffer is flushed for keeping more data. */
 void	UART_ParseAdafruitFeedData()
 {
 	if ((usart_get_received_length() > 0) && (((usart_get_received_byte((uint8_t)(usart_get_received_length() - 1))) == '\r') || ((usart_get_received_byte((uint8_t)(usart_get_received_length() - 1))) == '\n')))
@@ -371,8 +378,8 @@ void	UART_ParseAdafruitFeedData()
 		} else if (ID == 'S')
 		{
 			uint8_t DATA_Value = (uint8_t)atoi(&EncodedData[3]);
-			EEPROM_StoreMotorsArrange(DATA_Value - 1, Motors.Usable);	// The actual motors arrange is stored in the selected position
-		} else usart_rx_buffer_flush(); return;							// If the index is not correct, the data is thrashed
+			EEPROM_StoreMotorsArrange(DATA_Value - 1, Motors.Usable);		// The actual motors arrange is stored in the selected position
+		} else {usart_rx_buffer_flush(); return;}							// If the index is not correct, the data is thrashed
 
 			
 		usart_rx_buffer_flush();
@@ -395,6 +402,32 @@ void	EEPROM_ReadMotorsArrange(uint8_t Position_Number, uint8_t* Destination_Loca
 	eeprom_read_block((void*)Destination_Location, (const void*)Address, BytesPerArrange);
 }
 	
+/* UpdatePWM_IfNeeded function. Jitter is filtered by applying a deadband tolerance. It updates OCR1A only if the difference
+   between the new PWM value and the previous value is greater than the defined tolerance. If the difference is within the 
+   tolerance , the signal is only repeated if still within the active timeout. If the timeout has expired, no pulse is issued 
+   to reduce jitter and unnecessary power draw */
+void	UpdatePWM_IfNeeded(uint8_t Motor_Index)
+{
+	uint8_t NewValue = ADCH_to_PWM[Motors.Usable[Motor_Index]];
+	
+	// If a significant change is detected, apply it and reset the active timer
+	if ((NewValue  > (PWM_Last_Value[Motor_Index] + PWM_TOLERANCE)) || ((NewValue + PWM_TOLERANCE) < PWM_Last_Value[Motor_Index]))
+	{
+		PWM_Last_Value[Motor_Index]		= NewValue;
+		PWM_Active_Timer[Motor_Index]	= PWM_ACTIVE_DURATION_TICKS;
+		tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)NewValue);
+		tim1_tcnt_value(0);
+	
+	// Else, if still within active window, the output is maintained
+	} else if (PWM_Active_Timer[Motor_Index] > 0)
+	{
+		PWM_Active_Timer[Motor_Index]--;
+		tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)PWM_Last_Value[Motor_Index]);
+		tim1_tcnt_value(0);
+	}
+	
+	// Otherwise, suppress output (no update)
+}
 
 /*********************************************************************************************************************************************************************************************************************/
 // Interrupt routines
@@ -529,44 +562,44 @@ ISR(TIMER0_COMPA_vect)
 	switch (TIM0_Count)
 	{
 		case 0:
-			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[0]]);
-			tim1_tcnt_value(0);
+			if (PWM_Active_Timer[0] > 0) PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			else PORTB = 0;
+			UpdatePWM_IfNeeded(0);
 			break;
 		case 1:
-			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[1]]);
-			tim1_tcnt_value(0);
+			if (PWM_Active_Timer[1] > 0) PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			else PORTB = 0;
+			UpdatePWM_IfNeeded(1);
 			break;
 		case 2:
-			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[2]]);
-			tim1_tcnt_value(0);
+			if (PWM_Active_Timer[2] > 0) PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			else PORTB = 0;
+			UpdatePWM_IfNeeded(2);
 			break;
 		case 3:
-			PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[3]]);
-			tim1_tcnt_value(0);
+			if (PWM_Active_Timer[3] > 0) PORTB	|= (1 << PORTB5) | (0 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
+			else PORTB = 0;
+			UpdatePWM_IfNeeded(3);
 			break;
 		case 4:
-			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[4]]);
-			tim1_tcnt_value(0);
+			if (PWM_Active_Timer[4] > 0) PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (0 << PORTB2);
+			else PORTB = 0;
+			UpdatePWM_IfNeeded(4);
 			break;
 		case 5:
-			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[5]]);
-			tim1_tcnt_value(0);
+			if (PWM_Active_Timer[5] > 0) PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (0 << PORTB3) | (1 << PORTB2);
+			else PORTB = 0;
+			UpdatePWM_IfNeeded(5);
 			break;
 		case 6:
-			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[6]]);
-			tim1_tcnt_value(0);
+			if (PWM_Active_Timer[6] > 0) PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (0 << PORTB2);
+			else PORTB = 0;
+			UpdatePWM_IfNeeded(6);
 			break;
 		case 7:
-			PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
-			tim1_ocr_value(TIM1_CHANNEL_A, (uint16_t)ADCH_to_PWM[Motors.Usable[7]]);
-			tim1_tcnt_value(0);
+			if (PWM_Active_Timer[7] > 0) PORTB	|= (1 << PORTB5) | (1 << PORTB4) | (1 << PORTB3) | (1 << PORTB2);
+			else PORTB = 0;
+			UpdatePWM_IfNeeded(7);
 			break;
 		default: break;
 	}
@@ -579,11 +612,8 @@ ISR(TIMER0_COMPA_vect)
 ISR(TIMER1_COMPA_vect)
 {
 	
-	cli();
+	if (TIM0_Count < 8) PORTB = 0;
 	
-	if (TIM0_Count < 8) PORTB &= 0;
-	
-	sei();
 	
 }
 
@@ -599,25 +629,25 @@ ISR(ADC_vect)
 	switch (ADC_Count)
 	{
 		case 0:
-		ADC_Count = 1;
-		Motors.Manual[0] = ADC_Lec;
-		adc_channel(ADC_CHANNEL_ADC6);
-		break;
+			ADC_Count = 1;
+			Motors.Manual[0] = ADC_Lec;
+			adc_channel(ADC_CHANNEL_ADC6);
+			break;
 		case 1:
-		ADC_Count = 2;
-		Motors.Manual[1] = ADC_Lec;
-		adc_channel(ADC_CHANNEL_ADC5);
-		break;
+			ADC_Count = 2;
+			Motors.Manual[1] = ADC_Lec;
+			adc_channel(ADC_CHANNEL_ADC5);
+			break;
 		case 2:
-		ADC_Count = 3;
-		Motors.Manual[2] = ADC_Lec;
-		adc_channel(ADC_CHANNEL_ADC4);
-		break;
+			ADC_Count = 3;
+			Motors.Manual[2] = ADC_Lec;
+			adc_channel(ADC_CHANNEL_ADC4);
+			break;
 		case 3:
-		ADC_Count = 0;
-		Motors.Manual[3] = ADC_Lec;
-		adc_channel(ADC_CHANNEL_ADC7);
-		break;
+			ADC_Count = 0;
+			Motors.Manual[3] = ADC_Lec;
+			adc_channel(ADC_CHANNEL_ADC7);
+			break;
 		default: break;
 	}
 	adc_start_conversion();
